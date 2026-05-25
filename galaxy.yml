@@ -1,0 +1,34 @@
+---
+namespace: qubesos
+name: setup
+version: 0.1.0
+readme: README.md
+authors:
+  - "Frédéric Pierret <frederic@invisiblethingslab.com>"
+description: Ansible collection for configuring and managing Qubes OS qubes.
+license:
+  - GPL-2.0-or-later
+tags:
+  - qubes
+  - qubesos
+  - infrastructure
+  - vault
+  - split_gpg
+  - split_ssh
+repository: https://github.com/fepitre/qubes-ansible-collections
+issues: https://github.com/fepitre/qubes-ansible-collections/issues
+dependencies: {}
+build_ignore:
+  - .git
+  - .gitignore
+  - .github
+  - .gitlab-ci.yml
+  - .ansible-lint
+  - .yamllint
+  - .qubesbuilder
+  - '*.tar.gz'
+  - tests/
+  - rpm_spec/
+  - Makefile
+  - rel
+  - version

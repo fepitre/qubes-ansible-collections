@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Frederic Pierret
+  description: Enable qubes-service flag from dom0.
+  license: GPL-2.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Fedora
+      versions: [all]
+  galaxy_tags:
+    - qubes
+    - qubesos
+    - dom0
+    - qvm_service
+dependencies: []

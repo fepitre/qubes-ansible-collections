@@ -1,0 +1,71 @@
+---
+- name: Create test qubes
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Validate test_template is set
+      ansible.builtin.assert:
+        that:
+          - test_template is defined
+          - test_template | length > 0
+        fail_msg: "'test_template' is required (e.g. -e test_template=fedora-43-xfce)."
+
+    - name: Compute effective template name
+      ansible.builtin.set_fact:
+        effective_template: >-
+          {{
+            (prefix + '-tpl-' + test_template)
+            if not (test_skip_template_clone | default(false) | bool)
+            else test_template
+          }}
+
+    - name: Clone source template (preserve the original)
+      qubesos.core.qube:
+        name: "{{ effective_template }}"
+        klass: TemplateVM
+        clone_src: "{{ test_template }}"
+        state: present
+      when: not (test_skip_template_clone | default(false) | bool)
+
+    - name: Create vault qubes
+      qubesos.core.qube:
+        name: "{{ item }}"
+        state: present
+        klass: AppVM
+        template: "{{ effective_template }}"
+        properties:
+          label: black
+          netvm: ""
+      loop:
+        - "{{ prefix }}-vault-ssh"
+        - "{{ prefix }}-vault-gpg"
+
+    - name: Create client qubes
+      qubesos.core.qube:
+        name: "{{ item }}"
+        state: present
+        klass: AppVM
+        template: "{{ effective_template }}"
+        properties:
+          label: blue
+      loop:
+        - "{{ prefix }}-work"
+        - "{{ prefix }}-personal"
+
+    - name: Build per-client agent mapping
+      ansible.builtin.set_fact:
+        ci_client_agents: "{{ {prefix + '-work': ['work', 'shared'], prefix + '-personal': ['personal', 'shared']} }}"
+
+    - name: Register test qubes for the qubes connection
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: ci_qubes
+        ansible_connection: qubesos.core.qubes
+      loop:
+        - "{{ prefix }}-vault-ssh"
+        - "{{ prefix }}-vault-gpg"
+        - "{{ prefix }}-work"
+        - "{{ prefix }}-personal"

@@ -1,0 +1,53 @@
+---
+- name: Validate qsvc_name is set
+  ansible.builtin.assert:
+    that:
+      - qsvc_name | length > 0
+    fail_msg: "'qsvc_name' is required (e.g. 'docker')."
+
+- name: Install service packages
+  ansible.builtin.package:
+    name: "{{ qsvc_packages }}"
+    state: present
+  when: qsvc_packages | length > 0
+
+- name: Add users to {{ qsvc_user_group }} group
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ qsvc_user_group }}"
+    append: true
+  loop: "{{ qsvc_users_to_group }}"
+  when:
+    - qsvc_user_group | length > 0
+    - qsvc_users_to_group | length > 0
+
+- name: Create systemd dropin directory for each qubes-service unit
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ qsvc_systemd_units }}"
+
+- name: Drop qubes-service ConditionPathExists for each unit
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item }}.d/10-qubes-service.conf"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      ConditionPathExists={{ qsvc_flag_path }}
+  loop: "{{ qsvc_systemd_units }}"
+
+- name: Reload systemd to pick up the dropins
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable qubes-service units
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+  loop: "{{ qsvc_systemd_units }}"
+  when: qsvc_enable | bool

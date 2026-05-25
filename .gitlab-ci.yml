@@ -1,0 +1,67 @@
+---
+include:
+  - file: /common.yml
+    project: QubesOS/qubes-continuous-integration
+  - file: /r4.3/gitlab-base.yml
+    project: QubesOS/qubes-continuous-integration
+  - file: /r4.3/gitlab-host.yml
+    project: QubesOS/qubes-continuous-integration
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^test(-.*)?$/
+      variables:
+        CI_RUN_ALL_JOBS: "1"
+    - when: always
+
+variables:
+  CI_RUN_ANSIBLE_JOBS:
+    value: "0"
+    description: "Run Ansible deploy tests, default: 0"
+  CI_RUN_ALL_JOBS:
+    value: "0"
+    description: "Run all jobs, default: 0"
+
+lint:
+  extends: .lint
+  stage: tests
+  before_script:
+    - if [ "$EUID" -ne 0 ]; then DNF="sudo dnf"; fi
+    - ${DNF:-dnf} install -y python3-pip
+    - pip3 install yamllint ansible-lint
+  script:
+    - yamllint .
+    - ansible-lint
+
+shellcheck:
+  extends: .lint
+  stage: tests
+  before_script:
+    - if [ "$EUID" -ne 0 ]; then DNF="sudo dnf"; fi
+    - ${DNF:-dnf} install -y ShellCheck git
+  script:
+    - git ls-files '*.sh' | xargs -r shellcheck -x -e SC1117
+
+.ansible-deploy:
+  rules:
+    - if: $CI_RUN_ANSIBLE_JOBS == "1" || $CI_RUN_ALL_JOBS == "1"
+      when: always
+    - when: never
+  stage: tests
+  tags:
+    - vm-kvm
+  before_script:
+    - sudo qubes-dom0-update -y ansible qubes-ansible-dom0
+    - find $CI_PROJECT_DIR/artifacts/repository/host-fc* -name 'qubes-ansible-setup-*.noarch.rpm' -exec sudo dnf install -y {} \+
+  script:
+    - sudo ansible-playbook tests/test.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci
+  after_script:
+    - sudo ansible-playbook tests/cleanup.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci 2>/dev/null || true
+
+r4.3:ansible-deploy:
+  extends: .ansible-deploy
+  needs:
+    - r4.3:build:host-fc41
+  variables:
+    TEST_TEMPLATE: fedora-43-xfce
+    VM_IMAGE: qubes_4.3_64bit_stable.qcow2

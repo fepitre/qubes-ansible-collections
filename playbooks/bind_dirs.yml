@@ -1,0 +1,57 @@
+---
+- name: Build initial groups
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    qube_list: "{{ (qubes.split(',') if qubes is string else qubes) | map('trim') | list }}"
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - qubes is defined
+          - qube_list | length > 0
+          - paths is defined
+          - tag is defined
+
+    - name: Add target qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: bind_dirs_qubes
+        ansible_connection: qubesos.core.qubes
+      loop: "{{ qube_list }}"
+
+- name: Gather qube facts
+  hosts: bind_dirs_qubes
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  any_errors_fatal: true
+  tasks:
+    - qubesos.core.qube_facts:
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+- name: Configure bind-dirs
+  hosts: bind_dirs_qubes
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: bind_dirs
+      vars:
+        bind_dirs_tag: "{{ tag }}"
+        bind_dirs_paths: "{{ (paths.split(',') if paths is string else paths) | map('trim') | list }}"
+
+- name: Shutdown qubes
+  hosts: bind_dirs_qubes
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: "{{ qubes_facts.properties.klass }}"
+      delegate_to: localhost

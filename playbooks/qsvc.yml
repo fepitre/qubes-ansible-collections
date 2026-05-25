@@ -1,0 +1,128 @@
+---
+- name: Build initial groups
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    qube_list: "{{ (qubes.split(',') if qubes is string else qubes) | map('trim') | list }}"
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - svc is defined
+          - qubes is defined
+          - qube_list | length > 0
+
+    - name: Add target qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: svc_qubes
+      loop: "{{ qube_list }}"
+
+- name: Gather qube facts
+  hosts: svc_qubes
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  any_errors_fatal: true
+  tasks:
+    - qubesos.core.qube_facts:
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+- name: Discover templates from facts
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    qube_list: "{{ (qubes.split(',') if qubes is string else qubes) | map('trim') | list }}"
+  tasks:
+    - name: Add templates
+      ansible.builtin.add_host:
+        name: >-
+          {%- if hostvars[item].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[item].qubes_facts.properties.template }}
+          {%- else -%}
+          {{ item }}
+          {%- endif -%}
+        groups: svc_templates
+        ansible_connection: qubesos.core.qubes
+      loop: "{{ qube_list }}"
+
+    - name: Set connection for qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: qubesos.core.qubes
+      loop: "{{ qube_list }}"
+
+- name: Install service in templates
+  hosts: svc_templates
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: qsvc_template
+      vars:
+        qsvc_name: "{{ svc }}"
+        qsvc_packages: "{{ (packages.split(',') if packages is string else packages) | map('trim') | list if packages is defined else [] }}"
+        qsvc_systemd_units: "{{ (units.split(',') if units is string else units) | map('trim') | list if units is defined else [svc + '.service'] }}"
+        qsvc_user_group: "{{ user_group | default('') }}"
+        qsvc_users_to_group: "{{ (users_to_group.split(',') if users_to_group is string else users_to_group) | map('trim') | list if users_to_group is defined else [] }}"
+
+- name: Configure service in qubes
+  hosts: svc_qubes
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  vars:
+    qsvc_bind_dirs_list: "{{ (bind_dirs.split(',') if bind_dirs is string else bind_dirs) | map('trim') | list if bind_dirs is defined else [] }}"
+  roles:
+    - role: bind_dirs
+      vars:
+        bind_dirs_paths: "{{ qsvc_bind_dirs_list }}"
+        bind_dirs_tag: "service-{{ svc }}"
+      when: qsvc_bind_dirs_list | length > 0
+    - role: qsvc_qube
+      vars:
+        qsvc_name: "{{ svc }}"
+        qsvc_rc_local_lines: "{{ (rc_local_lines.split(',') if rc_local_lines is string else rc_local_lines) | map('trim') | list if rc_local_lines is defined else [] }}"
+
+- name: Enable qubes-service flag from dom0
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    qube_list: "{{ (qubes.split(',') if qubes is string else qubes) | map('trim') | list }}"
+  collections:
+    - qubesos.setup
+  roles:
+    - role: qsvc_dom0
+      vars:
+        qsvc_name: "{{ svc }}"
+        qsvc_dom0_qubes: "{{ qube_list }}"
+
+- name: Shutdown templates
+  hosts: svc_templates
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: TemplateVM
+      delegate_to: localhost
+
+- name: Shutdown qubes
+  hosts: svc_qubes
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: "{{ qubes_facts.properties.klass }}"
+      delegate_to: localhost

@@ -1,0 +1,27 @@
+---
+- name: Verify bind-dirs
+  hosts: "{{ test_prefix | default('ci') }}-work"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Read bind-dirs config
+      ansible.builtin.slurp:
+        src: /rw/config/qubes-bind-dirs.d/50-ci-test.conf
+      register: _bind_conf
+
+    - name: Assert bind-dirs contains test path
+      ansible.builtin.assert:
+        that:
+          - "'/opt/ci-test-persist' in (_bind_conf.content | b64decode)"
+
+    - name: Check bind-dirs backing directory exists
+      ansible.builtin.stat:
+        path: /rw/bind-dirs/opt/ci-test-persist
+      register: _bind_dir
+
+    - name: Assert bind-dirs backing directory exists
+      ansible.builtin.assert:
+        that:
+          - _bind_dir.stat.exists
+          - _bind_dir.stat.isdir

@@ -1,0 +1,9 @@
+---
+bind_dirs_paths: []
+bind_dirs_tag: ansible
+bind_dirs_priority: 50
+bind_dirs_conf_dir: /rw/config/qubes-bind-dirs.d
+bind_dirs_root: /rw/bind-dirs
+bind_dirs_owner: root
+bind_dirs_group: root
+bind_dirs_mode: "0755"

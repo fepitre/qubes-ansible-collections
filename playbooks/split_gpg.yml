@@ -1,0 +1,177 @@
+---
+- name: Build initial groups
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    client_list: "{{ (clients.split(',') if clients is string else clients) | map('trim') | list }}"
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - vault is defined
+          - clients is defined
+          - client_list | length > 0
+
+    - name: Validate create_vault prerequisites
+      ansible.builtin.assert:
+        that:
+          - vault_template is defined
+          - vault_template | length > 0
+        fail_msg: "'vault_template' is required when create_vault=true."
+      when: create_vault | default(false) | bool
+
+    - name: Create vault qube
+      qubesos.core.qube:
+        name: "{{ vault }}"
+        state: present
+        klass: AppVM
+        template: "{{ vault_template }}"
+        properties:
+          label: "{{ vault_label | default('black') }}"
+          netvm: ""
+      when: create_vault | default(false) | bool
+
+    - name: Add vault qube
+      ansible.builtin.add_host:
+        name: "{{ vault }}"
+        groups: gpg_vaults
+
+    - name: Add client qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: gpg_clients
+      loop: "{{ client_list }}"
+
+- name: Gather qube facts
+  hosts: gpg_vaults:gpg_clients
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  any_errors_fatal: true
+  tasks:
+    - qubesos.core.qube_facts:
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+- name: Discover templates from facts
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  tasks:
+    - name: Add vault template
+      ansible.builtin.add_host:
+        name: >-
+          {%- if hostvars[vault].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[vault].qubes_facts.properties.template }}
+          {%- else -%}
+          {{ vault }}
+          {%- endif -%}
+        groups: gpg_vault_templates
+        ansible_connection: qubesos.core.qubes
+
+    - name: Add client templates
+      ansible.builtin.add_host:
+        name: >-
+          {%- if hostvars[item].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[item].qubes_facts.properties.template }}
+          {%- else -%}
+          {{ item }}
+          {%- endif -%}
+        groups: gpg_client_templates
+        ansible_connection: qubesos.core.qubes
+      loop: "{{ groups['gpg_clients'] }}"
+
+    - name: Set connection for vault qube
+      ansible.builtin.add_host:
+        name: "{{ vault }}"
+        ansible_connection: qubesos.core.qubes
+
+    - name: Set connection for client qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: qubesos.core.qubes
+        _gpg_vault: "{{ vault }}"
+      loop: "{{ groups['gpg_clients'] }}"
+
+- name: Prepare templates
+  hosts: gpg_vault_templates:gpg_client_templates
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: vault_gpg_template
+      when: inventory_hostname in groups.get('gpg_vault_templates', [])
+    - role: split_gpg_client_template
+      when: inventory_hostname in groups.get('gpg_client_templates', [])
+
+- name: Configure GPG vault qube
+  hosts: gpg_vaults
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - vault_gpg
+
+- name: Configure GPG client qubes
+  hosts: gpg_clients
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: split_gpg_client
+      vars:
+        split_gpg_client_vault: "{{ _gpg_vault }}"
+
+- name: Install split-GPG RPC policy
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  become: true
+  vars:
+    client_list: "{{ (clients.split(',') if clients is string else clients) | map('trim') | list }}"
+  tasks:
+    - name: Write per-vault qubes.Gpg allow policy
+      ansible.builtin.template:
+        src: templates/split-gpg.policy.j2
+        dest: "/etc/qubes/policy.d/30-split-gpg-{{ vault }}.policy"
+        mode: "0644"
+        owner: root
+        group: qubes
+
+    - name: Write shared qubes.Gpg deny policy
+      ansible.builtin.copy:
+        content: |
+          qubes.Gpg * @anyvm @anyvm deny
+          qubes.GpgImportKey * @anyvm @anyvm deny
+        dest: /etc/qubes/policy.d/99-split-gpg-deny.policy
+        mode: "0644"
+        owner: root
+        group: qubes
+
+- name: Shutdown templates
+  hosts: gpg_vault_templates:gpg_client_templates
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: TemplateVM
+      delegate_to: localhost
+
+- name: Shutdown qubes
+  hosts: gpg_vaults:gpg_clients
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: "{{ qubes_facts.properties.klass }}"
+      delegate_to: localhost

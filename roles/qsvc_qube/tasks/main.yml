@@ -1,0 +1,22 @@
+---
+- name: Validate qsvc_name is set
+  ansible.builtin.assert:
+    that:
+      - qsvc_name | length > 0
+    fail_msg: "'qsvc_name' is required (e.g. 'docker')."
+
+- name: Ensure rc.local exists
+  ansible.builtin.file:
+    path: "{{ qsvc_rc_local_path }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0755"
+  when: qsvc_rc_local_lines | length > 0
+
+- name: Add {{ qsvc_name }} lines to rc.local
+  ansible.builtin.lineinfile:
+    path: "{{ qsvc_rc_local_path }}"
+    line: "{{ item }}"
+    state: present
+  loop: "{{ qsvc_rc_local_lines }}"

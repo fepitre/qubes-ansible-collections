@@ -1,0 +1,206 @@
+---
+- name: Build initial groups
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    policy_action: "{{ policy | default('allow') }}"
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - vault is defined
+          - client_agents is defined
+          - client_agents | length > 0
+          - policy_action in ['allow', 'ask']
+        fail_msg: "'vault' and 'client_agents' (dict of client -> [agent, ...]) are required."
+
+    - name: Validate every client has at least one agent
+      ansible.builtin.assert:
+        that:
+          - client_agents[item] | length > 0
+        fail_msg: "Client '{{ item }}' has an empty agent list in client_agents."
+      loop: "{{ client_agents.keys() | list }}"
+
+    - name: Compute effective client list and union agent list
+      ansible.builtin.set_fact:
+        client_to_agents: "{{ client_agents }}"
+        client_list: "{{ client_agents.keys() | list }}"
+        agent_list: "{{ client_agents.values() | flatten | unique | list }}"
+        policy_action: "{{ policy_action }}"
+
+    - name: Validate create_vault prerequisites
+      ansible.builtin.assert:
+        that:
+          - vault_template is defined
+          - vault_template | length > 0
+        fail_msg: "'vault_template' is required when create_vault=true."
+      when: create_vault | default(false) | bool
+
+    - name: Create vault qube
+      qubesos.core.qube:
+        name: "{{ vault }}"
+        state: present
+        klass: AppVM
+        template: "{{ vault_template }}"
+        properties:
+          label: "{{ vault_label | default('black') }}"
+          netvm: ""
+      when: create_vault | default(false) | bool
+
+    - name: Add vault qube
+      ansible.builtin.add_host:
+        name: "{{ vault }}"
+        groups: ssh_vaults
+
+    - name: Add client qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: ssh_clients
+      loop: "{{ client_list }}"
+
+- name: Gather qube facts
+  hosts: ssh_vaults:ssh_clients
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  any_errors_fatal: true
+  tasks:
+    - qubesos.core.qube_facts:
+        name: "{{ inventory_hostname }}"
+      delegate_to: localhost
+
+- name: Discover templates from facts
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  tasks:
+    - name: Add vault template
+      ansible.builtin.add_host:
+        name: >-
+          {%- if hostvars[vault].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[vault].qubes_facts.properties.template }}
+          {%- else -%}
+          {{ vault }}
+          {%- endif -%}
+        groups: ssh_vault_templates
+        ansible_connection: qubesos.core.qubes
+        _ssh_agent_list: "{{ agent_list }}"
+
+    - name: Add client templates
+      ansible.builtin.add_host:
+        name: >-
+          {%- if hostvars[item].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[item].qubes_facts.properties.template }}
+          {%- else -%}
+          {{ item }}
+          {%- endif -%}
+        groups: ssh_client_templates
+        ansible_connection: qubesos.core.qubes
+      loop: "{{ groups['ssh_clients'] }}"
+
+    - name: Set connection for vault qube
+      ansible.builtin.add_host:
+        name: "{{ vault }}"
+        ansible_connection: qubesos.core.qubes
+        _ssh_agent_list: "{{ agent_list }}"
+        _ssh_default_agent: "{{ vault_default_agent | default('') }}"
+
+    - name: Set connection for client qubes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        ansible_connection: qubesos.core.qubes
+        _ssh_agent_list: "{{ client_to_agents[item] }}"
+        _ssh_default_agent: >-
+          {{
+            client_default_agent
+            if (client_default_agent | default('')) in client_to_agents[item]
+            else ''
+          }}
+        _ssh_vault: "{{ vault }}"
+      loop: "{{ groups['ssh_clients'] }}"
+
+- name: Prepare templates
+  hosts: ssh_vault_templates:ssh_client_templates
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: vault_ssh_template
+      vars:
+        vault_ssh_template_agents: "{{ _ssh_agent_list }}"
+      when: inventory_hostname in groups.get('ssh_vault_templates', [])
+    - role: split_ssh_client_template
+      when: inventory_hostname in groups.get('ssh_client_templates', [])
+
+- name: Configure SSH vault qube
+  hosts: ssh_vaults
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: vault_ssh
+      vars:
+        vault_ssh_agents: "{{ _ssh_agent_list }}"
+        vault_ssh_default_agent: "{{ _ssh_default_agent }}"
+
+- name: Configure SSH client qubes
+  hosts: ssh_clients
+  remote_user: root
+  gather_facts: false
+  collections:
+    - qubesos.setup
+  roles:
+    - role: split_ssh_client
+      vars:
+        split_ssh_client_vault: "{{ _ssh_vault }}"
+        split_ssh_client_agents: "{{ _ssh_agent_list }}"
+        split_ssh_client_default_agent: "{{ _ssh_default_agent }}"
+
+- name: Install split-SSH RPC policy
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Write per-vault qubes.SshAgent allow policy
+      ansible.builtin.template:
+        src: templates/split-ssh.policy.j2
+        dest: "/etc/qubes/policy.d/30-split-ssh-{{ vault }}.policy"
+        mode: "0644"
+        owner: root
+        group: qubes
+
+    - name: Write shared qubes.SshAgent deny policy
+      ansible.builtin.copy:
+        content: "qubes.SshAgent * @anyvm @anyvm deny\n"
+        dest: /etc/qubes/policy.d/99-split-ssh-deny.policy
+        mode: "0644"
+        owner: root
+        group: qubes
+
+- name: Shutdown templates
+  hosts: ssh_vault_templates:ssh_client_templates
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: TemplateVM
+      delegate_to: localhost
+
+- name: Shutdown qubes
+  hosts: ssh_vaults:ssh_clients
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  connection: ansible.builtin.local
+  tasks:
+    - qubesos.core.qube:
+        name: "{{ inventory_hostname }}"
+        state: halted
+        klass: "{{ qubes_facts.properties.klass }}"
+      delegate_to: localhost

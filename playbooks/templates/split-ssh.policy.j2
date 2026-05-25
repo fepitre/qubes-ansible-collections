@@ -1,0 +1,5 @@
+{% for client, agents_for_client in client_to_agents.items() %}
+{% for agent in agents_for_client %}
+qubes.SshAgent +{{ agent }} {{ client }} {{ vault }} {{ policy_action }}
+{% endfor %}
+{% endfor %}

@@ -1,0 +1,38 @@
+---
+- name: Clean up stale management dispVMs
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+    effective_template: >-
+      {{
+        (prefix + '-tpl-' + test_template)
+        if not (test_skip_template_clone | default(false) | bool)
+        else test_template
+      }}
+    mgmt_dispvm_names:
+      - "disp-mgmt-{{ effective_template }}"
+      - "disp-mgmt-{{ prefix }}-vault-ssh"
+      - "disp-mgmt-{{ prefix }}-vault-gpg"
+      - "disp-mgmt-{{ prefix }}-work"
+      - "disp-mgmt-{{ prefix }}-personal"
+  tasks:
+    - name: Kill stale management dispVMs
+      ansible.builtin.command:
+        argv:
+          - qvm-kill
+          - "{{ item }}"
+      loop: "{{ mgmt_dispvm_names }}"
+      failed_when: false
+      changed_when: false
+
+    - name: Remove stale management dispVMs
+      ansible.builtin.command:
+        argv:
+          - qvm-remove
+          - -f
+          - "{{ item }}"
+      loop: "{{ mgmt_dispvm_names }}"
+      failed_when: false
+      changed_when: false

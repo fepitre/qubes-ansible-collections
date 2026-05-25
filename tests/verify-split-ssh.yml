@@ -1,0 +1,475 @@
+---
+- name: Verify split-SSH vault files
+  hosts: "{{ test_prefix | default('ci') }}-vault-ssh"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Check vault files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: _vault_files
+      loop:
+        - /usr/local/etc/qubes-rpc/qubes.SshAgent
+        - /usr/local/lib/systemd/system/split-ssh-agent@.service
+        - /usr/local/lib/split-ssh/start-agent
+        - /usr/local/bin/split-ssh
+
+    - name: Assert vault files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+      loop: "{{ _vault_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Check per-agent identities directories exist
+      ansible.builtin.stat:
+        path: "/home/user/.ssh/identities.d/{{ item }}"
+      register: _identities_dirs
+      loop:
+        - work
+        - personal
+        - shared
+
+    - name: Assert identities directories exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+      loop: "{{ _identities_dirs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read vault rc.local
+      ansible.builtin.slurp:
+        src: /rw/config/rc.local
+      register: _vault_rclocal
+
+    - name: Assert vault rc.local starts all agents
+      ansible.builtin.assert:
+        that:
+          - "'split-ssh-agent@work.service' in (_vault_rclocal.content | b64decode)"
+          - "'split-ssh-agent@personal.service' in (_vault_rclocal.content | b64decode)"
+          - "'split-ssh-agent@shared.service' in (_vault_rclocal.content | b64decode)"
+
+    - name: Read vault user .bashrc
+      ansible.builtin.slurp:
+        src: /home/user/.bashrc
+      register: _vault_bashrc
+
+    - name: Assert vault default agent is exported
+      ansible.builtin.assert:
+        that:
+          - "'/run/split-ssh/shared.sock' in (_vault_bashrc.content | b64decode)"
+
+- name: Verify split-SSH work client files
+  hosts: "{{ test_prefix | default('ci') }}-work"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Check work client files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: _work_files
+      loop:
+        - /usr/local/lib/systemd/system/split-ssh-forwarder@.service
+        - /usr/local/lib/split-ssh/start-forwarder
+        - /etc/profile.d/qubes-ssh.sh
+
+    - name: Assert work client files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+      loop: "{{ _work_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read work client rc.local
+      ansible.builtin.slurp:
+        src: /rw/config/rc.local
+      register: _work_rclocal
+
+    - name: Assert work client only starts the work and shared forwarders
+      ansible.builtin.assert:
+        that:
+          - "'split-ssh-forwarder@work.service' in (_work_rclocal.content | b64decode)"
+          - "'split-ssh-forwarder@shared.service' in (_work_rclocal.content | b64decode)"
+          - "'split-ssh-forwarder@personal.service' not in (_work_rclocal.content | b64decode)"
+
+    - name: Read work client default-agent file
+      ansible.builtin.slurp:
+        src: /rw/config/split-ssh-default-agent
+      register: _work_default
+
+    - name: Assert work client default agent is 'shared'
+      ansible.builtin.assert:
+        that:
+          - "(_work_default.content | b64decode | trim) == 'shared'"
+
+- name: Verify split-SSH personal client files
+  hosts: "{{ test_prefix | default('ci') }}-personal"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Check personal client files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: _personal_files
+      loop:
+        - /usr/local/lib/systemd/system/split-ssh-forwarder@.service
+        - /usr/local/lib/split-ssh/start-forwarder
+        - /etc/profile.d/qubes-ssh.sh
+
+    - name: Assert personal client files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+      loop: "{{ _personal_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read personal client rc.local
+      ansible.builtin.slurp:
+        src: /rw/config/rc.local
+      register: _personal_rclocal
+
+    - name: Assert personal client only starts the personal and shared forwarders
+      ansible.builtin.assert:
+        that:
+          - "'split-ssh-forwarder@personal.service' in (_personal_rclocal.content | b64decode)"
+          - "'split-ssh-forwarder@shared.service' in (_personal_rclocal.content | b64decode)"
+          - "'split-ssh-forwarder@work.service' not in (_personal_rclocal.content | b64decode)"
+
+- name: Verify split-SSH dom0 policies
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Read allow policy file
+      ansible.builtin.slurp:
+        src: "/etc/qubes/policy.d/30-split-ssh-{{ prefix }}-vault-ssh.policy"
+      register: _ssh_policy
+
+    - name: Assert allow lines for the work client
+      ansible.builtin.assert:
+        that:
+          - "'qubes.SshAgent +work ' + prefix + '-work ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
+          - "'qubes.SshAgent +shared ' + prefix + '-work ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
+          - "'qubes.SshAgent +personal ' + prefix + '-work ' + prefix + '-vault-ssh allow' not in (_ssh_policy.content | b64decode)"
+
+    - name: Assert allow lines for the personal client
+      ansible.builtin.assert:
+        that:
+          - "'qubes.SshAgent +personal ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
+          - "'qubes.SshAgent +shared ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
+          - "'qubes.SshAgent +work ' + prefix + '-personal ' + prefix + '-vault-ssh allow' not in (_ssh_policy.content | b64decode)"
+
+    - name: Read shared deny policy file
+      ansible.builtin.slurp:
+        src: /etc/qubes/policy.d/99-split-ssh-deny.policy
+      register: _deny_policy
+
+    - name: Assert shared deny line is present
+      ansible.builtin.assert:
+        that:
+          - "'qubes.SshAgent * @anyvm @anyvm deny' in (_deny_policy.content | b64decode)"
+
+- name: Boot qubes for end-to-end split-SSH tests
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Start vault and client qubes
+      ansible.builtin.command:
+        argv:
+          - qvm-start
+          - --skip-if-running
+          - "{{ item }}"
+      loop:
+        - "{{ prefix }}-vault-ssh"
+        - "{{ prefix }}-work"
+        - "{{ prefix }}-personal"
+      changed_when: false
+
+- name: Wait for vault agent sockets
+  hosts: "{{ test_prefix | default('ci') }}-vault-ssh"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Wait for agent sockets
+      ansible.builtin.wait_for:
+        path: "{{ item }}"
+        timeout: 60
+      loop:
+        - /run/split-ssh/work.sock
+        - /run/split-ssh/personal.sock
+        - /run/split-ssh/shared.sock
+
+- name: Verify work client forwarder sockets
+  hosts: "{{ test_prefix | default('ci') }}-work"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Wait for allowed forwarder sockets
+      ansible.builtin.wait_for:
+        path: "{{ item }}"
+        timeout: 60
+      loop:
+        - /home/user/.split-ssh/work.sock
+        - /home/user/.split-ssh/shared.sock
+
+    - name: Check personal forwarder socket is absent
+      ansible.builtin.stat:
+        path: /home/user/.split-ssh/personal.sock
+      register: _work_personal_sock
+
+    - name: Assert work client has no personal forwarder socket
+      ansible.builtin.assert:
+        that:
+          - not _work_personal_sock.stat.exists
+
+- name: Verify personal client forwarder sockets
+  hosts: "{{ test_prefix | default('ci') }}-personal"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Wait for allowed forwarder sockets
+      ansible.builtin.wait_for:
+        path: "{{ item }}"
+        timeout: 60
+      loop:
+        - /home/user/.split-ssh/personal.sock
+        - /home/user/.split-ssh/shared.sock
+
+    - name: Check work forwarder socket is absent
+      ansible.builtin.stat:
+        path: /home/user/.split-ssh/work.sock
+      register: _personal_work_sock
+
+    - name: Assert personal client has no work forwarder socket
+      ansible.builtin.assert:
+        that:
+          - not _personal_work_sock.stat.exists
+
+- name: Generate test SSH keys and reload agents (in vault)
+  hosts: "{{ test_prefix | default('ci') }}-vault-ssh"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Generate per-agent test keys
+      ansible.builtin.shell: |
+        rm -f /home/user/.ssh/identities.d/{{ item }}/id_test*
+        ssh-keygen -t ed25519 -q -N '' -C '{{ item }}-test' \
+          -f /home/user/.ssh/identities.d/{{ item }}/id_test
+      loop:
+        - work
+        - personal
+        - shared
+
+    - name: Reload all agents
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - reload
+          - "{{ item }}"
+      loop:
+        - work
+        - personal
+        - shared
+
+    - name: List keys from the vault side
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - list
+          - "{{ item }}"
+      loop:
+        - work
+        - personal
+        - shared
+      register: _vault_lists
+      changed_when: false
+
+    - name: Persist vault listings for cross-play comparison
+      ansible.builtin.set_fact:
+        _vault_list_work: "{{ _vault_lists.results[0].stdout }}"
+        _vault_list_personal: "{{ _vault_lists.results[1].stdout }}"
+        _vault_list_shared: "{{ _vault_lists.results[2].stdout }}"
+
+- name: End-to-end split-SSH (work client)
+  hosts: "{{ test_prefix | default('ci') }}-work"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: List keys via work and shared from work client
+      ansible.builtin.shell: |
+        SSH_AUTH_SOCK=/home/user/.split-ssh/{{ item }}.sock ssh-add -l
+      loop:
+        - work
+        - shared
+      register: _work_client_lists
+      changed_when: false
+
+    - name: Assert work client sees only its allowed keys
+      ansible.builtin.assert:
+        that:
+          - "'work-test' in _work_client_lists.results[0].stdout"
+          - "'shared-test' not in _work_client_lists.results[0].stdout"
+          - "'personal-test' not in _work_client_lists.results[0].stdout"
+          - "'shared-test' in _work_client_lists.results[1].stdout"
+          - "'work-test' not in _work_client_lists.results[1].stdout"
+          - "'personal-test' not in _work_client_lists.results[1].stdout"
+
+    - name: Assert vault and work client see the same fingerprint per agent
+      vars:
+        _vault_work: "{{ hostvars[prefix + '-vault-ssh']._vault_list_work }}"
+        _vault_shared: "{{ hostvars[prefix + '-vault-ssh']._vault_list_shared }}"
+      ansible.builtin.assert:
+        that:
+          - _vault_work == _work_client_lists.results[0].stdout
+          - _vault_shared == _work_client_lists.results[1].stdout
+
+    - name: Persist work client's shared-agent output
+      ansible.builtin.set_fact:
+        _work_shared_stdout: "{{ _work_client_lists.results[1].stdout }}"
+
+- name: End-to-end split-SSH (personal client + isolation)
+  hosts: "{{ test_prefix | default('ci') }}-personal"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+    vault_qube: "{{ prefix }}-vault-ssh"
+  tasks:
+    - name: List keys via personal and shared from personal client
+      ansible.builtin.shell: |
+        SSH_AUTH_SOCK=/home/user/.split-ssh/{{ item }}.sock ssh-add -l
+      loop:
+        - personal
+        - shared
+      register: _personal_client_lists
+      changed_when: false
+
+    - name: Assert personal client sees only its allowed keys
+      ansible.builtin.assert:
+        that:
+          - "'personal-test' in _personal_client_lists.results[0].stdout"
+          - "'work-test' not in _personal_client_lists.results[0].stdout"
+          - "'shared-test' not in _personal_client_lists.results[0].stdout"
+          - "'shared-test' in _personal_client_lists.results[1].stdout"
+          - "'work-test' not in _personal_client_lists.results[1].stdout"
+          - "'personal-test' not in _personal_client_lists.results[1].stdout"
+
+    - name: Assert shared agent returns the same view to both clients
+      vars:
+        _work_shared: "{{ hostvars[prefix + '-work']._work_shared_stdout }}"
+      ansible.builtin.assert:
+        that:
+          - _work_shared == _personal_client_lists.results[1].stdout
+        fail_msg: "Shared agent returned different output to work vs personal clients."
+
+    - name: Attempt qrexec call to the disallowed work agent
+      ansible.builtin.shell: |
+        qrexec-client-vm {{ vault_qube }} qubes.SshAgent+work </dev/null
+      register: _personal_work_attempt
+      changed_when: false
+      failed_when: false
+
+    - name: Assert qrexec denied the disallowed work agent
+      ansible.builtin.assert:
+        that:
+          - _personal_work_attempt.rc != 0
+        fail_msg: "Personal client was able to talk to qubes.SshAgent+work (policy isolation broken)."
+
+- name: Verify split-ssh CLI surface
+  hosts: "{{ test_prefix | default('ci') }}-vault-ssh"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  tasks:
+    - name: Reject invalid agent name
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - list
+          - "../etc"
+      register: _cli_bad_name
+      failed_when: false
+      changed_when: false
+
+    - name: Assert invalid agent name was rejected
+      ansible.builtin.assert:
+        that:
+          - _cli_bad_name.rc != 0
+
+    - name: Generate a dummy key outside identities.d
+      ansible.builtin.shell: |
+        rm -f /tmp/dummy-key*
+        ssh-keygen -t ed25519 -q -N '' -C 'dummy-test' -f /tmp/dummy-key
+
+    - name: Pass-through add via 'split-ssh add <agent> <key>'
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - add
+          - work
+          - /tmp/dummy-key
+
+    - name: List work agent after dummy key added
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - list
+          - work
+      register: _cli_work_after_dummy
+      changed_when: false
+
+    - name: Assert dummy key is present
+      ansible.builtin.assert:
+        that:
+          - "'dummy-test' in _cli_work_after_dummy.stdout"
+          - "'work-test' in _cli_work_after_dummy.stdout"
+
+    - name: Drop a new key into identities.d/work for dir-scan add
+      ansible.builtin.shell: |
+        rm -f /home/user/.ssh/identities.d/work/id_scan*
+        ssh-keygen -t ed25519 -q -N '' -C 'scan-test' \
+          -f /home/user/.ssh/identities.d/work/id_scan
+
+    - name: Dir-scan via 'split-ssh add <agent>' (no key arg)
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - add
+          - work
+
+    - name: List work agent after dir-scan add
+      ansible.builtin.command:
+        argv:
+          - split-ssh
+          - list
+          - work
+      register: _cli_work_after_scan
+      changed_when: false
+
+    - name: Assert dir-scanned key is present and previous keys are still loaded
+      ansible.builtin.assert:
+        that:
+          - "'scan-test' in _cli_work_after_scan.stdout"
+          - "'work-test' in _cli_work_after_scan.stdout"
+          - "'dummy-test' in _cli_work_after_scan.stdout"

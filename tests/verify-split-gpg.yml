@@ -1,0 +1,134 @@
+---
+- name: Verify split-GPG vault and client files
+  hosts: "{{ test_prefix | default('ci') }}-vault-gpg:{{ test_prefix | default('ci') }}-work"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Check vault .gnupg directory
+      ansible.builtin.stat:
+        path: /home/user/.gnupg
+      register: _gnupg_stat
+      when: inventory_hostname == prefix + '-vault-gpg'
+
+    - name: Assert vault .gnupg directory exists
+      ansible.builtin.assert:
+        that:
+          - _gnupg_stat.stat.exists
+          - _gnupg_stat.stat.isdir
+      when: inventory_hostname == prefix + '-vault-gpg'
+
+    - name: Read client GPG domain file
+      ansible.builtin.slurp:
+        src: /rw/config/gpg-split-domain
+      register: _gpg_domain
+      when: inventory_hostname == prefix + '-work'
+
+    - name: Assert GPG domain points to vault
+      ansible.builtin.assert:
+        that:
+          - "prefix + '-vault-gpg' in (_gpg_domain.content | b64decode)"
+      when: inventory_hostname == prefix + '-work'
+
+- name: Verify split-GPG dom0 policy
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Read split-GPG RPC policy
+      ansible.builtin.slurp:
+        src: "/etc/qubes/policy.d/30-split-gpg-{{ prefix }}-vault-gpg.policy"
+      register: _gpg_policy
+
+    - name: Assert GPG policy allows client to vault
+      ansible.builtin.assert:
+        that:
+          - "prefix + '-work' in (_gpg_policy.content | b64decode)"
+          - "prefix + '-vault-gpg' in (_gpg_policy.content | b64decode)"
+
+- name: Boot GPG vault qube
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Start GPG vault qube
+      ansible.builtin.command:
+        argv:
+          - qvm-start
+          - --skip-if-running
+          - "{{ prefix }}-vault-gpg"
+      changed_when: false
+
+- name: Generate test GPG key in vault
+  hosts: "{{ test_prefix | default('ci') }}-vault-gpg"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: Pre-authorize split-GPG access for client
+      ansible.builtin.shell: |
+        mkdir -p /run/qubes-gpg-split
+        touch /run/qubes-gpg-split/stat.{{ prefix }}-work
+      remote_user: root
+      changed_when: false
+
+    - name: Generate test GPG key if missing
+      ansible.builtin.shell: |
+        if gpg --list-keys toto@dummy.local >/dev/null 2>&1; then
+          exit 0
+        fi
+        gpg --batch --passphrase '' --quick-gen-key 'Toto Dummy <toto@dummy.local>' ed25519 sign never
+      remote_user: user
+      register: _gpg_gen
+      changed_when: "'created' in _gpg_gen.stderr or _gpg_gen.rc == 0"
+
+    - name: List GPG keys in vault
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --with-colons
+          - --list-keys
+          - toto@dummy.local
+      remote_user: user
+      register: _gpg_vault_keys
+      changed_when: false
+
+    - name: Extract vault fingerprint
+      ansible.builtin.set_fact:
+        _gpg_vault_fpr: "{{ _gpg_vault_keys.stdout_lines | select('match', '^fpr:') | first }}"
+
+- name: End-to-end split-GPG (client view)
+  hosts: "{{ test_prefix | default('ci') }}-work"
+  gather_facts: false
+  strategy: ansible.builtin.linear
+  remote_user: user
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
+    - name: List GPG keys via split-GPG
+      ansible.builtin.command:
+        argv:
+          - qubes-gpg-client
+          - --with-colons
+          - --list-keys
+          - toto@dummy.local
+      register: _gpg_client_keys
+      changed_when: false
+
+    - name: Extract client fingerprint
+      ansible.builtin.set_fact:
+        _gpg_client_fpr: "{{ _gpg_client_keys.stdout_lines | select('match', '^fpr:') | first }}"
+
+    - name: Assert vault and client see the same GPG fingerprint
+      vars:
+        _vault_fpr: "{{ hostvars[prefix + '-vault-gpg']._gpg_vault_fpr }}"
+      ansible.builtin.assert:
+        that:
+          - _vault_fpr == _gpg_client_fpr

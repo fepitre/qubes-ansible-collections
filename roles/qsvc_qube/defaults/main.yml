@@ -1,0 +1,4 @@
+---
+qsvc_name: ""
+qsvc_rc_local_lines: []
+qsvc_rc_local_path: /rw/config/rc.local

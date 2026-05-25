@@ -1,0 +1,5 @@
+---
+- name: Install split-GPG vault dependencies
+  ansible.builtin.package:
+    name: "{{ vault_gpg_template_packages }}"
+    state: present

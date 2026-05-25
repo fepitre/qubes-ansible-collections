@@ -1,0 +1,6 @@
+---
+skip_list:
+  - name[template]
+mock_modules:
+  - qubesos.core.qube_facts
+  - qubesos.core.qube

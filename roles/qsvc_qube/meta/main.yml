@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: Frederic Pierret
+  description: Append per-service rc.local lines in a qube.
+  license: GPL-2.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Fedora
+      versions: [all]
+    - name: Debian
+      versions: [all]
+  galaxy_tags:
+    - qubes
+    - qubesos
+    - systemd
+    - qvm_service
+dependencies: []

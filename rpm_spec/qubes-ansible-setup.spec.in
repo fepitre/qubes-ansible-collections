@@ -1,0 +1,37 @@
+%define collection_dir %{_datadir}/ansible/collections/ansible_collections/qubesos/setup
+
+Name:       qubes-ansible-setup
+Version:    @VERSION@
+Release:    @REL@%{?dist}
+Summary:    Ansible collection for configuring and managing Qubes OS qubes
+License:    GPLv2+
+URL:        https://github.com/fepitre/qubes-ansible-collections
+BuildArch:  noarch
+
+Source0:    %{name}-%{version}.tar.gz
+
+Requires:   ansible
+Requires:   qubes-ansible
+
+BuildRequires: make
+
+%description
+Ansible collection (qubesos.setup) for configuring and managing
+Qubes OS qubes.
+
+%prep
+%autosetup
+
+%install
+make DESTDIR=$RPM_BUILD_ROOT install
+
+%files
+%license LICENSE
+%doc README.md
+%{collection_dir}/galaxy.yml
+%{collection_dir}/meta/runtime.yml
+%{collection_dir}/playbooks/
+%{collection_dir}/roles/
+
+%changelog
+@CHANGELOG@

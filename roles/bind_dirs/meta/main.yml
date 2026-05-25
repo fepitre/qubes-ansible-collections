@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: Frederic Pierret
+  description: Persist paths across reboots via qubes-bind-dirs.
+  license: GPL-2.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Fedora
+      versions: [all]
+    - name: Debian
+      versions: [all]
+  galaxy_tags:
+    - qubes
+    - qubesos
+    - bind_dirs
+    - persistence
+dependencies: []

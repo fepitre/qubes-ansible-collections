@@ -1,0 +1,34 @@
+---
+- import_playbook: setup.yml
+
+- import_playbook: cleanup-mgmt-dispvms.yml
+
+- import_playbook: ../playbooks/split_ssh.yml
+  vars:
+    vault: "{{ test_prefix | default('ci') }}-vault-ssh"
+    client_agents: "{{ hostvars['localhost'].ci_client_agents }}"
+    vault_default_agent: shared
+    client_default_agent: shared
+
+- import_playbook: cleanup-mgmt-dispvms.yml
+
+- import_playbook: ../playbooks/split_gpg.yml
+  vars:
+    vault: "{{ test_prefix | default('ci') }}-vault-gpg"
+    clients: "{{ test_prefix | default('ci') }}-work"
+
+- import_playbook: cleanup-mgmt-dispvms.yml
+
+- import_playbook: ../playbooks/bind_dirs.yml
+  vars:
+    qubes: "{{ test_prefix | default('ci') }}-work"
+    paths: /opt/ci-test-persist
+    tag: ci-test
+
+- import_playbook: verify-split-ssh.yml
+
+- import_playbook: verify-split-gpg.yml
+
+- import_playbook: verify-bind-dirs.yml
+
+- import_playbook: cleanup.yml

@@ -1,0 +1,4 @@
+systemctl daemon-reload
+{% for agent in split_ssh_client_agents %}
+systemctl --no-block restart split-ssh-forwarder@{{ agent }}.service
+{% endfor %}

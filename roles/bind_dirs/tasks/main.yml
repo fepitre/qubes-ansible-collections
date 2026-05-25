@@ -1,0 +1,34 @@
+---
+- name: Validate bind_dirs_paths is a non-empty list
+  ansible.builtin.assert:
+    that:
+      - bind_dirs_paths is sequence
+      - bind_dirs_paths is not string
+      - (bind_dirs_paths | length) > 0
+    fail_msg: >-
+      'bind_dirs_paths' must be a non-empty list of absolute paths.
+
+- name: Ensure qubes-bind-dirs.d config directory exists
+  ansible.builtin.file:
+    path: "{{ bind_dirs_conf_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Drop bind-dirs config for {{ bind_dirs_tag }}
+  ansible.builtin.template:
+    src: bind-dirs.conf.j2
+    dest: "{{ bind_dirs_conf_dir }}/{{ bind_dirs_priority }}-{{ bind_dirs_tag }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Pre-create bind-dirs backing directories
+  ansible.builtin.file:
+    path: "{{ bind_dirs_root }}{{ item }}"
+    state: directory
+    owner: "{{ bind_dirs_owner }}"
+    group: "{{ bind_dirs_group }}"
+    mode: "{{ bind_dirs_mode }}"
+  loop: "{{ bind_dirs_paths }}"

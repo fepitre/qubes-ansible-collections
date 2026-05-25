@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: Frederic Pierret
+  description: Install split-GPG vault packages in a template.
+  license: GPL-2.0-or-later
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Fedora
+      versions: [all]
+    - name: Debian
+      versions: [all]
+  galaxy_tags:
+    - qubes
+    - qubesos
+    - split_gpg
+    - vault
+dependencies: []

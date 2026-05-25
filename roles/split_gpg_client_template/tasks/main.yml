@@ -1,0 +1,6 @@
+---
+- name: Install split-GPG client packages
+  ansible.builtin.package:
+    name: "{{ split_gpg_client_template_packages }}"
+    state: present
+  when: split_gpg_client_template_packages | length > 0

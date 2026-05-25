@@ -1,0 +1,35 @@
+---
+- name: Clean up test qubes
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+    effective_template: >-
+      {{
+        (prefix + '-tpl-' + test_template)
+        if (test_template is defined and not (test_skip_template_clone | default(false) | bool))
+        else (test_template | default(''))
+      }}
+  tasks:
+    - name: Remove test qubes
+      qubesos.core.qube:
+        name: "{{ item }}"
+        state: absent
+        klass: AppVM
+      loop:
+        - "{{ prefix }}-work"
+        - "{{ prefix }}-personal"
+        - "{{ prefix }}-vault-ssh"
+        - "{{ prefix }}-vault-gpg"
+      when: test_cleanup | default(true) | bool
+
+    - name: Remove cloned template
+      qubesos.core.qube:
+        name: "{{ effective_template }}"
+        state: absent
+        klass: TemplateVM
+      when:
+        - test_cleanup | default(true) | bool
+        - test_template is defined
+        - not (test_skip_template_clone | default(false) | bool)
