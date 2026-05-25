@@ -21,6 +21,9 @@ variables:
   CI_RUN_ALL_JOBS:
     value: "0"
     description: "Run all jobs, default: 0"
+  CI_KEEP_TEST_QUBES:
+    value: "0"
+    description: "Keep test qubes after the run for troubleshooting, default: 0"
 
 lint:
   extends: .lint
@@ -52,10 +55,14 @@ shellcheck:
     - vm-kvm
   before_script:
     - sudo qubes-dom0-update -y ansible qubes-ansible-dom0
-    - find $CI_PROJECT_DIR/artifacts/repository/host-fc* -name 'qubes-ansible-setup-*.noarch.rpm' -exec sudo dnf install -y {} \+
+    - >-
+      find "$CI_PROJECT_DIR"/artifacts/repository/host-fc*
+      -name 'qubes-ansible-setup-*.noarch.rpm'
+      -exec sudo dnf install -y {} \+
   script:
     - sudo ansible-playbook tests/test.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci
   after_script:
+    - if [ "$CI_KEEP_TEST_QUBES" = "1" ]; then echo "CI_KEEP_TEST_QUBES=1, keeping test qubes"; exit 0; fi
     - sudo ansible-playbook tests/cleanup.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci 2>/dev/null || true
 
 r4.3:ansible-deploy:
