@@ -2,6 +2,7 @@
 extends: default
 ignore: |
   .ansible/
+  artifacts/
 rules:
   line-length:
     max: 120
