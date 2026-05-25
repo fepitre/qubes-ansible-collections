@@ -54,7 +54,7 @@ shellcheck:
   tags:
     - vm-kvm
   before_script:
-    - sudo qubes-dom0-update -y ansible qubes-ansible-dom0
+    - sudo qubes-dom0-update --enablerepo=qubes-dom0-current-testing -y ansible qubes-ansible-dom0
     - >-
       find "$CI_PROJECT_DIR"/artifacts/repository/host-fc*
       -name 'qubes-ansible-setup-*.noarch.rpm'
