@@ -12,6 +12,6 @@ galaxy_info:
   galaxy_tags:
     - qubes
     - qubesos
-    - split_ssh
+    - splitssh
     - vault
 dependencies: []

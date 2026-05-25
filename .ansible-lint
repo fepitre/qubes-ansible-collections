@@ -1,6 +1,13 @@
 ---
 skip_list:
   - name[template]
+  # collections keyword + short role names are required by the qubes_proxy
+  # strategy, which ships roles by basename to disp-mgmt dispvms.
+  - fqcn[keyword]
+  # qsvc_template/qsvc_qube/qsvc_dom0 intentionally share the qsvc_ prefix.
+  - var-naming[no-role-prefix]
+  # CHANGELOG is generated from git history, not kept in-tree.
+  - galaxy[no-changelog]
 mock_modules:
   - qubesos.core.qube_facts
   - qubesos.core.qube

@@ -155,19 +155,23 @@
         src: "/etc/qubes/policy.d/30-split-ssh-{{ prefix }}-vault-ssh.policy"
       register: _ssh_policy
 
+    - name: Decode allow policy content
+      ansible.builtin.set_fact:
+        _ssh_policy_text: "{{ _ssh_policy.content | b64decode }}"
+
     - name: Assert allow lines for the work client
       ansible.builtin.assert:
         that:
-          - "'qubes.SshAgent +work ' + prefix + '-work ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
-          - "'qubes.SshAgent +shared ' + prefix + '-work ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
-          - "'qubes.SshAgent +personal ' + prefix + '-work ' + prefix + '-vault-ssh allow' not in (_ssh_policy.content | b64decode)"
+          - "'qubes.SshAgent +work ' + prefix + '-work ' + prefix + '-vault-ssh allow' in _ssh_policy_text"
+          - "'qubes.SshAgent +shared ' + prefix + '-work ' + prefix + '-vault-ssh allow' in _ssh_policy_text"
+          - "'qubes.SshAgent +personal ' + prefix + '-work ' + prefix + '-vault-ssh allow' not in _ssh_policy_text"
 
     - name: Assert allow lines for the personal client
       ansible.builtin.assert:
         that:
-          - "'qubes.SshAgent +personal ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
-          - "'qubes.SshAgent +shared ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in (_ssh_policy.content | b64decode)"
-          - "'qubes.SshAgent +work ' + prefix + '-personal ' + prefix + '-vault-ssh allow' not in (_ssh_policy.content | b64decode)"
+          - "'qubes.SshAgent +personal ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in _ssh_policy_text"
+          - "'qubes.SshAgent +shared ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in _ssh_policy_text"
+          - "'qubes.SshAgent +work ' + prefix + '-personal ' + prefix + '-vault-ssh allow' not in _ssh_policy_text"
 
     - name: Read shared deny policy file
       ansible.builtin.slurp:
@@ -272,6 +276,7 @@
         rm -f /home/user/.ssh/identities.d/{{ item }}/id_test*
         ssh-keygen -t ed25519 -q -N '' -C '{{ item }}-test' \
           -f /home/user/.ssh/identities.d/{{ item }}/id_test
+      changed_when: true
       loop:
         - work
         - personal
@@ -283,6 +288,7 @@
           - split-ssh
           - reload
           - "{{ item }}"
+      changed_when: true
       loop:
         - work
         - personal
@@ -421,6 +427,7 @@
       ansible.builtin.shell: |
         rm -f /tmp/dummy-key*
         ssh-keygen -t ed25519 -q -N '' -C 'dummy-test' -f /tmp/dummy-key
+      changed_when: true
 
     - name: Pass-through add via 'split-ssh add <agent> <key>'
       ansible.builtin.command:
@@ -429,6 +436,7 @@
           - add
           - work
           - /tmp/dummy-key
+      changed_when: true
 
     - name: List work agent after dummy key added
       ansible.builtin.command:
@@ -450,6 +458,7 @@
         rm -f /home/user/.ssh/identities.d/work/id_scan*
         ssh-keygen -t ed25519 -q -N '' -C 'scan-test' \
           -f /home/user/.ssh/identities.d/work/id_scan
+      changed_when: true
 
     - name: Dir-scan via 'split-ssh add <agent>' (no key arg)
       ansible.builtin.command:
@@ -457,6 +466,7 @@
           - split-ssh
           - add
           - work
+      changed_when: true
 
     - name: List work agent after dir-scan add
       ansible.builtin.command:

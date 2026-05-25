@@ -66,7 +66,8 @@
   connection: ansible.builtin.local
   any_errors_fatal: true
   tasks:
-    - qubesos.core.qube_facts:
+    - name: Gather qube facts
+      qubesos.core.qube_facts:
         name: "{{ inventory_hostname }}"
       delegate_to: localhost
 
@@ -187,7 +188,8 @@
   strategy: ansible.builtin.linear
   connection: ansible.builtin.local
   tasks:
-    - qubesos.core.qube:
+    - name: Shut down template
+      qubesos.core.qube:
         name: "{{ inventory_hostname }}"
         state: halted
         klass: TemplateVM
@@ -199,7 +201,8 @@
   strategy: ansible.builtin.linear
   connection: ansible.builtin.local
   tasks:
-    - qubesos.core.qube:
+    - name: Shut down qube
+      qubesos.core.qube:
         name: "{{ inventory_hostname }}"
         state: halted
         klass: "{{ qubes_facts.properties.klass }}"

@@ -26,7 +26,8 @@
   connection: ansible.builtin.local
   any_errors_fatal: true
   tasks:
-    - qubesos.core.qube_facts:
+    - name: Gather qube facts
+      qubesos.core.qube_facts:
         name: "{{ inventory_hostname }}"
       delegate_to: localhost
 
@@ -65,10 +66,16 @@
     - role: qsvc_template
       vars:
         qsvc_name: "{{ svc }}"
-        qsvc_packages: "{{ (packages.split(',') if packages is string else packages) | map('trim') | list if packages is defined else [] }}"
-        qsvc_systemd_units: "{{ (units.split(',') if units is string else units) | map('trim') | list if units is defined else [svc + '.service'] }}"
+        qsvc_packages: >-
+          {{ (packages.split(',') if packages is string else packages)
+             | map('trim') | list if packages is defined else [] }}
+        qsvc_systemd_units: >-
+          {{ (units.split(',') if units is string else units)
+             | map('trim') | list if units is defined else [svc + '.service'] }}
         qsvc_user_group: "{{ user_group | default('') }}"
-        qsvc_users_to_group: "{{ (users_to_group.split(',') if users_to_group is string else users_to_group) | map('trim') | list if users_to_group is defined else [] }}"
+        qsvc_users_to_group: >-
+          {{ (users_to_group.split(',') if users_to_group is string else users_to_group)
+             | map('trim') | list if users_to_group is defined else [] }}
 
 - name: Configure service in qubes
   hosts: svc_qubes
@@ -77,7 +84,9 @@
   collections:
     - qubesos.setup
   vars:
-    qsvc_bind_dirs_list: "{{ (bind_dirs.split(',') if bind_dirs is string else bind_dirs) | map('trim') | list if bind_dirs is defined else [] }}"
+    qsvc_bind_dirs_list: >-
+      {{ (bind_dirs.split(',') if bind_dirs is string else bind_dirs)
+         | map('trim') | list if bind_dirs is defined else [] }}
   roles:
     - role: bind_dirs
       vars:
@@ -87,7 +96,9 @@
     - role: qsvc_qube
       vars:
         qsvc_name: "{{ svc }}"
-        qsvc_rc_local_lines: "{{ (rc_local_lines.split(',') if rc_local_lines is string else rc_local_lines) | map('trim') | list if rc_local_lines is defined else [] }}"
+        qsvc_rc_local_lines: >-
+          {{ (rc_local_lines.split(',') if rc_local_lines is string else rc_local_lines)
+             | map('trim') | list if rc_local_lines is defined else [] }}
 
 - name: Enable qubes-service flag from dom0
   hosts: localhost
@@ -109,7 +120,8 @@
   strategy: ansible.builtin.linear
   connection: ansible.builtin.local
   tasks:
-    - qubesos.core.qube:
+    - name: Shut down template
+      qubesos.core.qube:
         name: "{{ inventory_hostname }}"
         state: halted
         klass: TemplateVM
@@ -121,7 +133,8 @@
   strategy: ansible.builtin.linear
   connection: ansible.builtin.local
   tasks:
-    - qubesos.core.qube:
+    - name: Shut down qube
+      qubesos.core.qube:
         name: "{{ inventory_hostname }}"
         state: halted
         klass: "{{ qubes_facts.properties.klass }}"

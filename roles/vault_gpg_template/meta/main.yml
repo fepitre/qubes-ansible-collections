@@ -12,6 +12,6 @@ galaxy_info:
   galaxy_tags:
     - qubes
     - qubesos
-    - split_gpg
+    - splitgpg
     - vault
 dependencies: []

@@ -13,5 +13,5 @@ galaxy_info:
     - qubes
     - qubesos
     - systemd
-    - qvm_service
+    - qvmservice
 dependencies: []

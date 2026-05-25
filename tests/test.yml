@@ -1,34 +1,45 @@
 ---
-- import_playbook: setup.yml
+- name: Set up test qubes
+  import_playbook: setup.yml
 
-- import_playbook: cleanup-mgmt-dispvms.yml
+- name: Clean mgmt dispvms before split-SSH
+  import_playbook: cleanup-mgmt-dispvms.yml
 
-- import_playbook: ../playbooks/split_ssh.yml
+- name: Deploy split-SSH
+  import_playbook: ../playbooks/split_ssh.yml
   vars:
     vault: "{{ test_prefix | default('ci') }}-vault-ssh"
     client_agents: "{{ hostvars['localhost'].ci_client_agents }}"
     vault_default_agent: shared
     client_default_agent: shared
 
-- import_playbook: cleanup-mgmt-dispvms.yml
+- name: Clean mgmt dispvms before split-GPG
+  import_playbook: cleanup-mgmt-dispvms.yml
 
-- import_playbook: ../playbooks/split_gpg.yml
+- name: Deploy split-GPG
+  import_playbook: ../playbooks/split_gpg.yml
   vars:
     vault: "{{ test_prefix | default('ci') }}-vault-gpg"
     clients: "{{ test_prefix | default('ci') }}-work"
 
-- import_playbook: cleanup-mgmt-dispvms.yml
+- name: Clean mgmt dispvms before bind-dirs
+  import_playbook: cleanup-mgmt-dispvms.yml
 
-- import_playbook: ../playbooks/bind_dirs.yml
+- name: Deploy bind-dirs
+  import_playbook: ../playbooks/bind_dirs.yml
   vars:
     qubes: "{{ test_prefix | default('ci') }}-work"
     paths: /opt/ci-test-persist
     tag: ci-test
 
-- import_playbook: verify-split-ssh.yml
+- name: Verify split-SSH
+  import_playbook: verify-split-ssh.yml
 
-- import_playbook: verify-split-gpg.yml
+- name: Verify split-GPG
+  import_playbook: verify-split-gpg.yml
 
-- import_playbook: verify-bind-dirs.yml
+- name: Verify bind-dirs
+  import_playbook: verify-bind-dirs.yml
 
-- import_playbook: cleanup.yml
+- name: Clean up test qubes
+  import_playbook: cleanup.yml
