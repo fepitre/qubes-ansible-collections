@@ -59,11 +59,17 @@ shellcheck:
       find "$CI_PROJECT_DIR"/artifacts/repository/host-fc*
       -name 'qubes-ansible-setup-*.noarch.rpm'
       -exec sudo dnf install -y {} \+
+    - >-
+      sudo qvm-run -p -u root "${TEST_TEMPLATE}"
+      'dnf install -y --enablerepo=qubes-vm-r4.3-current-testing qubes-ansible-vm'
+    - sudo qvm-shutdown --wait "${TEST_TEMPLATE}"
   script:
-    - sudo ansible-playbook tests/test.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci
+    - sudo ansible-playbook -vvvv tests/test.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci
   after_script:
     - if [ "$CI_KEEP_TEST_QUBES" = "1" ]; then echo "CI_KEEP_TEST_QUBES=1, keeping test qubes"; exit 0; fi
-    - sudo ansible-playbook tests/cleanup.yml -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci 2>/dev/null || true
+    - >-
+      sudo ansible-playbook -vvvv tests/cleanup.yml
+      -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci 2>/dev/null || true
 
 r4.3:ansible-deploy:
   extends: .ansible-deploy

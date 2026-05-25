@@ -1,5 +1,5 @@
 ---
-- name: Create test qubes
+- name: Create test template
   hosts: localhost
   connection: ansible.builtin.local
   gather_facts: false
@@ -30,6 +30,13 @@
         state: present
       when: not (test_skip_template_clone | default(false) | bool)
 
+- name: Create test qubes
+  hosts: localhost
+  connection: ansible.builtin.local
+  gather_facts: false
+  vars:
+    prefix: "{{ test_prefix | default('ci') }}"
+  tasks:
     - name: Create vault qubes
       qubesos.core.qube:
         name: "{{ item }}"
