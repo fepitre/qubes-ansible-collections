@@ -1,0 +1,12 @@
+---
+split_ssh_role: ""
+split_ssh_user: user
+split_ssh_agents:
+  - default
+split_ssh_default_agent: ""
+split_ssh_default_agent_file: /rw/config/split-ssh-default-agent
+split_ssh_rc_local_path: /rw/config/rc.local
+split_ssh_packages:
+  - socat
+  - openssh-clients
+split_ssh_vault: ""

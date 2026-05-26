@@ -1,0 +1,49 @@
+---
+- name: Validate split_ssh_role
+  ansible.builtin.assert:
+    that:
+      - split_ssh_role in ['vault', 'client']
+    fail_msg: "'split_ssh_role' must be 'vault' or 'client'."
+
+- name: Validate split_ssh_agents is non-empty
+  ansible.builtin.assert:
+    that:
+      - split_ssh_agents | length > 0
+    fail_msg: "'split_ssh_agents' must list at least one agent name."
+
+- name: Validate agent names
+  ansible.builtin.assert:
+    that:
+      - item is match('^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$')
+    fail_msg: "Invalid agent name '{{ item }}'."
+  loop: "{{ split_ssh_agents }}"
+
+- name: Validate split_ssh_phase
+  ansible.builtin.assert:
+    that:
+      - split_ssh_phase in ['template', 'appvm']
+    fail_msg: "'split_ssh_phase' must be 'template' or 'appvm'."
+
+- name: Run vault template phase
+  ansible.builtin.import_tasks: vault-template.yml
+  when:
+    - split_ssh_phase == 'template'
+    - split_ssh_role == 'vault'
+
+- name: Run client template phase
+  ansible.builtin.import_tasks: client-template.yml
+  when:
+    - split_ssh_phase == 'template'
+    - split_ssh_role == 'client'
+
+- name: Run vault AppVM phase
+  ansible.builtin.import_tasks: vault-appvm.yml
+  when:
+    - split_ssh_phase == 'appvm'
+    - split_ssh_role == 'vault'
+
+- name: Run client AppVM phase
+  ansible.builtin.import_tasks: client-appvm.yml
+  when:
+    - split_ssh_phase == 'appvm'
+    - split_ssh_role == 'client'

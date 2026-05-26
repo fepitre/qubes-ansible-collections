@@ -1,0 +1,35 @@
+---
+- name: Gather OS family
+  ansible.builtin.setup:
+    gather_subset: min
+
+- name: Load OS-specific variables
+  ansible.builtin.include_vars: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_os_family }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+      skip: true
+
+- name: Install split-SSH vault dependencies
+  ansible.builtin.package:
+    name: "{{ split_ssh_packages }}"
+    state: present
+
+- name: Seed /etc/skel/.ssh
+  ansible.builtin.file:
+    path: /etc/skel/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Seed per-agent identities directories under /etc/skel
+  ansible.builtin.file:
+    path: "/etc/skel/.ssh/identities.d/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: "{{ split_ssh_agents }}"

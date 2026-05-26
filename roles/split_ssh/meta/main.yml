@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Frederic Pierret
-  description: Configure a qubes-service (template package install + AppVM rc.local).
+  description: Configure split-SSH (vault or client; template package install + AppVM setup).
   license: GPL-2.0-or-later
   min_ansible_version: "2.16"
   platforms:
@@ -12,6 +12,5 @@ galaxy_info:
   galaxy_tags:
     - qubes
     - qubesos
-    - systemd
-    - qvmservice
+    - splitssh
 dependencies: []

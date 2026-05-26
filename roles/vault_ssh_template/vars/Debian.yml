@@ -1,4 +1,0 @@
----
-vault_ssh_template_packages:
-  - socat
-  - openssh-client

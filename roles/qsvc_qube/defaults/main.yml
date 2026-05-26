@@ -2,3 +2,9 @@
 qsvc_name: ""
 qsvc_rc_local_lines: []
 qsvc_rc_local_path: /rw/config/rc.local
+qsvc_packages: []
+qsvc_systemd_units: ["{{ qsvc_name }}.service"]
+qsvc_user_group: ""
+qsvc_users_to_group: []
+qsvc_enable: true
+qsvc_flag_path: "/run/qubes-service/{{ qsvc_name }}"

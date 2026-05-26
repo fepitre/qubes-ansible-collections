@@ -1,0 +1,5 @@
+---
+- name: Install split-GPG packages
+  ansible.builtin.package:
+    name: "{{ split_gpg_packages }}"
+    state: present

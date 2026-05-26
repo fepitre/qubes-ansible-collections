@@ -1,4 +1,0 @@
----
-split_gpg_client_vault: ""
-split_gpg_client_user: user
-split_gpg_client_domain_file: /rw/config/gpg-split-domain

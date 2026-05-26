@@ -102,9 +102,15 @@
   collections:
     - qubesos.setup
   roles:
-    - role: vault_gpg_template
+    - role: split_gpg
+      vars:
+        split_gpg_role: vault
+        split_gpg_phase: template
       when: inventory_hostname in groups.get('gpg_vault_templates', [])
-    - role: split_gpg_client_template
+    - role: split_gpg
+      vars:
+        split_gpg_role: client
+        split_gpg_phase: template
       when: inventory_hostname in groups.get('gpg_client_templates', [])
 
 - name: Configure GPG vault qube
@@ -114,7 +120,10 @@
   collections:
     - qubesos.setup
   roles:
-    - vault_gpg
+    - role: split_gpg
+      vars:
+        split_gpg_role: vault
+        split_gpg_phase: appvm
 
 - name: Configure GPG client qubes
   hosts: gpg_clients
@@ -123,9 +132,11 @@
   collections:
     - qubesos.setup
   roles:
-    - role: split_gpg_client
+    - role: split_gpg
       vars:
-        split_gpg_client_vault: "{{ _gpg_vault }}"
+        split_gpg_role: client
+        split_gpg_phase: appvm
+        split_gpg_vault: "{{ _gpg_vault }}"
 
 - name: Install split-GPG RPC policy
   hosts: localhost
@@ -153,28 +164,21 @@
         owner: root
         group: qubes
 
-- name: Shutdown templates
-  hosts: gpg_vault_templates:gpg_client_templates
-  gather_facts: false
-  strategy: ansible.builtin.linear
+- name: Shutdown templates and qubes
+  hosts: localhost
   connection: ansible.builtin.local
+  gather_facts: false
   tasks:
-    - name: Shut down template
+    - name: Shut down templates
       qubesos.core.qube:
-        name: "{{ inventory_hostname }}"
+        name: "{{ item }}"
         state: halted
         klass: TemplateVM
-      delegate_to: localhost
+      loop: "{{ (groups.get('gpg_vault_templates', []) + groups.get('gpg_client_templates', [])) | unique }}"
 
-- name: Shutdown qubes
-  hosts: gpg_vaults:gpg_clients
-  gather_facts: false
-  strategy: ansible.builtin.linear
-  connection: ansible.builtin.local
-  tasks:
-    - name: Shut down qube
+    - name: Shut down qubes
       qubesos.core.qube:
-        name: "{{ inventory_hostname }}"
+        name: "{{ item }}"
         state: halted
-        klass: "{{ qubes_facts.properties.klass }}"
-      delegate_to: localhost
+        klass: "{{ hostvars[item].qubes_facts.properties.klass }}"
+      loop: "{{ (groups.get('gpg_vaults', []) + groups.get('gpg_clients', [])) | unique }}"

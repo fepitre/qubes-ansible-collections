@@ -1,0 +1,28 @@
+---
+- name: Validate split_gpg_role
+  ansible.builtin.assert:
+    that:
+      - split_gpg_role in ['vault', 'client']
+    fail_msg: "'split_gpg_role' must be 'vault' or 'client'."
+
+- name: Validate split_gpg_phase
+  ansible.builtin.assert:
+    that:
+      - split_gpg_phase in ['template', 'appvm']
+    fail_msg: "'split_gpg_phase' must be 'template' or 'appvm'."
+
+- name: Run template phase
+  ansible.builtin.import_tasks: template.yml
+  when: split_gpg_phase == 'template'
+
+- name: Run vault AppVM phase
+  ansible.builtin.import_tasks: vault-appvm.yml
+  when:
+    - split_gpg_phase == 'appvm'
+    - split_gpg_role == 'vault'
+
+- name: Run client AppVM phase
+  ansible.builtin.import_tasks: client-appvm.yml
+  when:
+    - _split_gpg_qf.qubes_facts.properties.klass != 'TemplateVM'
+    - split_gpg_role == 'client'

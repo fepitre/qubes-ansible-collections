@@ -1,8 +1,0 @@
----
-qsvc_name: ""
-qsvc_packages: []
-qsvc_systemd_units: ["{{ qsvc_name }}.service"]
-qsvc_user_group: ""
-qsvc_users_to_group: []
-qsvc_enable: true
-qsvc_flag_path: "/run/qubes-service/{{ qsvc_name }}"

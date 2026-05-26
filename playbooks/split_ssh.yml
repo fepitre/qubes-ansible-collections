@@ -128,11 +128,16 @@
   collections:
     - qubesos.setup
   roles:
-    - role: vault_ssh_template
+    - role: split_ssh
       vars:
-        vault_ssh_template_agents: "{{ _ssh_agent_list }}"
+        split_ssh_role: vault
+        split_ssh_phase: template
+        split_ssh_agents: "{{ _ssh_agent_list }}"
       when: inventory_hostname in groups.get('ssh_vault_templates', [])
-    - role: split_ssh_client_template
+    - role: split_ssh
+      vars:
+        split_ssh_role: client
+        split_ssh_phase: template
       when: inventory_hostname in groups.get('ssh_client_templates', [])
 
 - name: Configure SSH vault qube
@@ -142,10 +147,12 @@
   collections:
     - qubesos.setup
   roles:
-    - role: vault_ssh
+    - role: split_ssh
       vars:
-        vault_ssh_agents: "{{ _ssh_agent_list }}"
-        vault_ssh_default_agent: "{{ _ssh_default_agent }}"
+        split_ssh_role: vault
+        split_ssh_phase: appvm
+        split_ssh_agents: "{{ _ssh_agent_list }}"
+        split_ssh_default_agent: "{{ _ssh_default_agent }}"
 
 - name: Configure SSH client qubes
   hosts: ssh_clients
@@ -154,11 +161,13 @@
   collections:
     - qubesos.setup
   roles:
-    - role: split_ssh_client
+    - role: split_ssh
       vars:
-        split_ssh_client_vault: "{{ _ssh_vault }}"
-        split_ssh_client_agents: "{{ _ssh_agent_list }}"
-        split_ssh_client_default_agent: "{{ _ssh_default_agent }}"
+        split_ssh_role: client
+        split_ssh_phase: appvm
+        split_ssh_vault: "{{ _ssh_vault }}"
+        split_ssh_agents: "{{ _ssh_agent_list }}"
+        split_ssh_default_agent: "{{ _ssh_default_agent }}"
 
 - name: Install split-SSH RPC policy
   hosts: localhost
@@ -182,28 +191,21 @@
         owner: root
         group: qubes
 
-- name: Shutdown templates
-  hosts: ssh_vault_templates:ssh_client_templates
-  gather_facts: false
-  strategy: ansible.builtin.linear
+- name: Shutdown templates and qubes
+  hosts: localhost
   connection: ansible.builtin.local
+  gather_facts: false
   tasks:
-    - name: Shut down template
+    - name: Shut down templates
       qubesos.core.qube:
-        name: "{{ inventory_hostname }}"
+        name: "{{ item }}"
         state: halted
         klass: TemplateVM
-      delegate_to: localhost
+      loop: "{{ (groups.get('ssh_vault_templates', []) + groups.get('ssh_client_templates', [])) | unique }}"
 
-- name: Shutdown qubes
-  hosts: ssh_vaults:ssh_clients
-  gather_facts: false
-  strategy: ansible.builtin.linear
-  connection: ansible.builtin.local
-  tasks:
-    - name: Shut down qube
+    - name: Shut down qubes
       qubesos.core.qube:
-        name: "{{ inventory_hostname }}"
+        name: "{{ item }}"
         state: halted
-        klass: "{{ qubes_facts.properties.klass }}"
-      delegate_to: localhost
+        klass: "{{ hostvars[item].qubes_facts.properties.klass }}"
+      loop: "{{ (groups.get('ssh_vaults', []) + groups.get('ssh_clients', [])) | unique }}"

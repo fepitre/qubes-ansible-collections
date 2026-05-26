@@ -1,3 +1,0 @@
----
-vault_gpg_template_packages:
-  - qubes-gpg-split

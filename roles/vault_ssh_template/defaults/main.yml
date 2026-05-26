@@ -1,5 +1,0 @@
----
-vault_ssh_template_agents: []
-vault_ssh_template_packages:
-  - socat
-  - openssh-clients

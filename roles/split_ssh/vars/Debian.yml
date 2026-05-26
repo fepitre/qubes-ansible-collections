@@ -1,0 +1,4 @@
+---
+split_ssh_packages:
+  - socat
+  - openssh-client

@@ -1,0 +1,103 @@
+---
+- name: Create /usr/local/etc/qubes-rpc directory
+  ansible.builtin.file:
+    path: /usr/local/etc/qubes-rpc
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install qubes.SshAgent RPC service
+  ansible.builtin.copy:
+    src: qubes.SshAgent
+    dest: /usr/local/etc/qubes-rpc/qubes.SshAgent
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create split-ssh lib directory
+  ansible.builtin.file:
+    path: /usr/local/lib/split-ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh-agent start script
+  ansible.builtin.template:
+    src: start-ssh-agent.j2
+    dest: /usr/local/lib/split-ssh/start-agent
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh CLI helper
+  ansible.builtin.copy:
+    src: split-ssh
+    dest: /usr/local/bin/split-ssh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure systemd unit directory exists
+  ansible.builtin.file:
+    path: /usr/local/lib/systemd/system
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh-agent templated systemd unit
+  ansible.builtin.template:
+    src: split-ssh-agent@.service.j2
+    dest: /usr/local/lib/systemd/system/split-ssh-agent@.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure ~/.ssh exists for vault user
+  ansible.builtin.file:
+    path: "/home/{{ split_ssh_user }}/.ssh"
+    state: directory
+    owner: "{{ split_ssh_user }}"
+    group: "{{ split_ssh_user }}"
+    mode: "0700"
+
+- name: Create per-agent identities directories
+  ansible.builtin.file:
+    path: "/home/{{ split_ssh_user }}/.ssh/identities.d/{{ item }}"
+    state: directory
+    owner: "{{ split_ssh_user }}"
+    group: "{{ split_ssh_user }}"
+    mode: "0700"
+  loop: "{{ split_ssh_agents }}"
+
+- name: Ensure rc.local exists and is executable
+  ansible.builtin.file:
+    path: "{{ split_ssh_rc_local_path }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Start split-ssh-agent instances from rc.local
+  ansible.builtin.blockinfile:
+    path: "{{ split_ssh_rc_local_path }}"
+    marker: "# {mark} ANSIBLE MANAGED - split-SSH vault ssh-agent"
+    block: |
+      systemctl daemon-reload
+      {% for agent in split_ssh_agents %}
+      systemctl --no-block restart split-ssh-agent@{{ agent }}.service
+      {% endfor %}
+
+- name: Export SSH_AUTH_SOCK in vault user shell
+  ansible.builtin.blockinfile:
+    path: "/home/{{ split_ssh_user }}/.bashrc"
+    create: true
+    owner: "{{ split_ssh_user }}"
+    group: "{{ split_ssh_user }}"
+    mode: "0644"
+    marker: "# {mark} ANSIBLE MANAGED - split-SSH vault SSH_AUTH_SOCK"
+    block: |
+      export SSH_AUTH_SOCK="/run/split-ssh/{{ split_ssh_default_agent }}.sock"
+  when: split_ssh_default_agent | length > 0

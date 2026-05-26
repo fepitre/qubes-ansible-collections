@@ -1,5 +1,0 @@
----
-vault_ssh_user: user
-vault_ssh_agents:
-  - default
-vault_ssh_default_agent: ""

@@ -1,8 +1,0 @@
----
-split_ssh_client_vault: ""
-split_ssh_client_user: user
-split_ssh_client_agents:
-  - default
-split_ssh_client_default_agent: ""
-split_ssh_client_default_agent_file: /rw/config/split-ssh-default-agent
-split_ssh_client_rc_local_path: /rw/config/rc.local

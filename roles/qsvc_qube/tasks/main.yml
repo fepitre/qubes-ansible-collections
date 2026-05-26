@@ -1,22 +1,14 @@
 ---
-- name: Validate qsvc_name is set
+- name: Validate qsvc_phase
   ansible.builtin.assert:
     that:
-      - qsvc_name | length > 0
-    fail_msg: "'qsvc_name' is required (e.g. 'docker')."
+      - qsvc_phase in ['template', 'appvm']
+    fail_msg: "'qsvc_phase' must be 'template' or 'appvm'."
 
-- name: Ensure rc.local exists
-  ansible.builtin.file:
-    path: "{{ qsvc_rc_local_path }}"
-    state: touch
-    owner: root
-    group: root
-    mode: "0755"
-  when: qsvc_rc_local_lines | length > 0
+- name: Run template phase
+  ansible.builtin.import_tasks: template.yml
+  when: qsvc_phase == 'template'
 
-- name: Add {{ qsvc_name }} lines to rc.local
-  ansible.builtin.lineinfile:
-    path: "{{ qsvc_rc_local_path }}"
-    line: "{{ item }}"
-    state: present
-  loop: "{{ qsvc_rc_local_lines }}"
+- name: Run AppVM phase
+  ansible.builtin.import_tasks: appvm.yml
+  when: qsvc_phase == 'appvm'

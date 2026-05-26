@@ -63,8 +63,9 @@
   collections:
     - qubesos.setup
   roles:
-    - role: qsvc_template
+    - role: qsvc_qube
       vars:
+        qsvc_phase: template
         qsvc_name: "{{ svc }}"
         qsvc_packages: >-
           {{ (packages.split(',') if packages is string else packages)
@@ -95,6 +96,7 @@
       when: qsvc_bind_dirs_list | length > 0
     - role: qsvc_qube
       vars:
+        qsvc_phase: appvm
         qsvc_name: "{{ svc }}"
         qsvc_rc_local_lines: >-
           {{ (rc_local_lines.split(',') if rc_local_lines is string else rc_local_lines)
@@ -114,28 +116,21 @@
         qsvc_name: "{{ svc }}"
         qsvc_dom0_qubes: "{{ qube_list }}"
 
-- name: Shutdown templates
-  hosts: svc_templates
-  gather_facts: false
-  strategy: ansible.builtin.linear
+- name: Shutdown templates and qubes
+  hosts: localhost
   connection: ansible.builtin.local
+  gather_facts: false
   tasks:
-    - name: Shut down template
+    - name: Shut down templates
       qubesos.core.qube:
-        name: "{{ inventory_hostname }}"
+        name: "{{ item }}"
         state: halted
         klass: TemplateVM
-      delegate_to: localhost
+      loop: "{{ groups.get('svc_templates', []) | unique }}"
 
-- name: Shutdown qubes
-  hosts: svc_qubes
-  gather_facts: false
-  strategy: ansible.builtin.linear
-  connection: ansible.builtin.local
-  tasks:
-    - name: Shut down qube
+    - name: Shut down qubes
       qubesos.core.qube:
-        name: "{{ inventory_hostname }}"
+        name: "{{ item }}"
         state: halted
-        klass: "{{ qubes_facts.properties.klass }}"
-      delegate_to: localhost
+        klass: "{{ hostvars[item].qubes_facts.properties.klass }}"
+      loop: "{{ groups.get('svc_qubes', []) | unique }}"

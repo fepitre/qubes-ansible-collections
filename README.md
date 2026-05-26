@@ -33,17 +33,15 @@ ansible-galaxy collection install qubesos-setup-*.tar.gz
 | Role | Target | Purpose |
 |---|---|---|
 | `bind_dirs` | qube | Persist paths across reboots via `/rw/bind-dirs/`. |
-| `vault_ssh_template` | template | Install split-SSH vault dependencies. |
-| `vault_ssh` | qube (vault) | Install `qubes.SshAgent` qrexec service, start `ssh-agent`. |
-| `split_ssh_client_template` | template | Install client packages, drop `/etc/profile.d/qubes-ssh.sh`. |
-| `split_ssh_client` | qube | Install per-agent forwarder units, default-agent file, rc.local hook. |
-| `vault_gpg_template` | template | Install split-GPG vault dependencies. |
-| `vault_gpg` | qube (vault) | Ensure `~/.gnupg` exists. |
-| `split_gpg_client_template` | template | Install `qubes-gpg-split` client packages. |
-| `split_gpg_client` | qube | Write `gpg-split-domain`. |
-| `qsvc_template` | template | Install packages, add qubes-service systemd condition, enable units. |
-| `qsvc_qube` | qube | Append per-service `rc.local` lines (bind-dirs delegated to `bind_dirs`). |
+| `split_ssh` | template + qube (vault or client) | Install split-SSH packages; in the vault, install `qubes.SshAgent` qrexec service and per-agent `ssh-agent` units; in clients, install `/etc/profile.d/qubes-ssh.sh`, per-agent forwarder units, default-agent file, rc.local hook. |
+| `split_gpg` | template + qube (vault or client) | Install `qubes-gpg-split` packages; in the vault, ensure `~/.gnupg` exists; in clients, write `gpg-split-domain`. |
+| `qsvc_qube` | template + qube | Install packages, add qubes-service systemd condition, enable units; append per-service `rc.local` lines (bind-dirs delegated to `bind_dirs`). |
 | `qsvc_dom0` | dom0 | Enable `qvm-service` flag for a list of qubes. |
+
+Roles that target both `template` and `qube` auto-detect the host's
+klass via `qubesos.core.qube_facts` and run the appropriate phase.
+The `split_ssh` and `split_gpg` roles also branch on a `*_role:
+vault|client` variable set by the playbook.
 
 ## Playbooks
 
@@ -258,7 +256,7 @@ already exist. The playbooks configure them, they do not create them.
 Manual provisioning is still required for the secrets themselves:
 
 - **split-SSH**: generate a key per agent inside the vault qube. With
-  `vault_ssh_agents=[default]` the role drops `~/.ssh/identities.d/default/`;
+  `split_ssh_agents=[default]` the role drops `~/.ssh/identities.d/default/`;
   put a key there:
 
   ```bash

@@ -1,0 +1,8 @@
+---
+- name: Ensure vault user .gnupg directory exists
+  ansible.builtin.file:
+    path: "/home/{{ split_gpg_user }}/.gnupg"
+    state: directory
+    owner: "{{ split_gpg_user }}"
+    group: "{{ split_gpg_user }}"
+    mode: "0700"

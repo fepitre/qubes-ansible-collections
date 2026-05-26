@@ -1,4 +1,0 @@
----
-split_ssh_client_template_packages:
-  - socat
-  - openssh-clients
