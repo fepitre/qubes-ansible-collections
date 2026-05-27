@@ -15,8 +15,8 @@ tags:
   - vault
   - split_gpg
   - split_ssh
-repository: https://github.com/fepitre/qubes-ansible-collections
-issues: https://github.com/fepitre/qubes-ansible-collections/issues
+repository: https://github.com/QubesOS/qubes-ansible-collections
+issues: https://github.com/QubesOS/qubes-ansible-collections/issues
 dependencies: {}
 build_ignore:
   - .git

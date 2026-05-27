@@ -150,7 +150,7 @@
       ansible.builtin.template:
         src: templates/split-gpg.policy.j2
         dest: "/etc/qubes/policy.d/30-split-gpg-{{ vault }}.policy"
-        mode: "0644"
+        mode: "0664"
         owner: root
         group: qubes
 
@@ -160,7 +160,7 @@
           qubes.Gpg * @anyvm @anyvm deny
           qubes.GpgImportKey * @anyvm @anyvm deny
         dest: /etc/qubes/policy.d/99-split-gpg-deny.policy
-        mode: "0644"
+        mode: "0664"
         owner: root
         group: qubes
 

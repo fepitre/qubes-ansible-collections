@@ -179,7 +179,7 @@
       ansible.builtin.template:
         src: templates/split-ssh.policy.j2
         dest: "/etc/qubes/policy.d/30-split-ssh-{{ vault }}.policy"
-        mode: "0644"
+        mode: "0664"
         owner: root
         group: qubes
 
@@ -187,7 +187,7 @@
       ansible.builtin.copy:
         content: "qubes.SshAgent * @anyvm @anyvm deny\n"
         dest: /etc/qubes/policy.d/99-split-ssh-deny.policy
-        mode: "0644"
+        mode: "0664"
         owner: root
         group: qubes
 
