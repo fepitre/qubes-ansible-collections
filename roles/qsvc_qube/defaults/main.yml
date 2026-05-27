@@ -1,7 +1,7 @@
 ---
 qsvc_name: ""
 qsvc_rc_local_lines: []
-qsvc_rc_local_path: /rw/config/rc.local
+qsvc_rc_local_d: /rw/config/rc.local.d
 qsvc_packages: []
 qsvc_systemd_units: ["{{ qsvc_name }}.service"]
 qsvc_user_group: ""

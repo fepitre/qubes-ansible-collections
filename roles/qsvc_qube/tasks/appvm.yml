@@ -5,18 +5,20 @@
       - qsvc_name | length > 0
     fail_msg: "'qsvc_name' is required (e.g. 'docker')."
 
-- name: Ensure rc.local exists
+- name: Ensure rc.local.d directory exists
   ansible.builtin.file:
-    path: "{{ qsvc_rc_local_path }}"
-    state: touch
+    path: "{{ qsvc_rc_local_d }}"
+    state: directory
     owner: root
     group: root
     mode: "0755"
   when: qsvc_rc_local_lines | length > 0
 
-- name: Add {{ qsvc_name }} lines to rc.local
-  ansible.builtin.lineinfile:
-    path: "{{ qsvc_rc_local_path }}"
-    line: "{{ item }}"
-    state: present
-  loop: "{{ qsvc_rc_local_lines }}"
+- name: Drop {{ qsvc_name }} rc.local.d snippet
+  ansible.builtin.copy:
+    dest: "{{ qsvc_rc_local_d }}/30-{{ qsvc_name }}.rc"
+    owner: root
+    group: root
+    mode: "0755"
+    content: "#!/bin/sh\n{{ qsvc_rc_local_lines | join('\n') }}\n"
+  when: qsvc_rc_local_lines | length > 0
