@@ -1,4 +1,4 @@
 {% for client in client_list %}
-qubes.Gpg * {{ client }} {{ vault }} allow
-qubes.GpgImportKey * {{ client }} {{ vault }} allow
+qubes.Gpg * {{ client }} @default allow target={{ vault }}
+qubes.GpgImportKey * {{ client }} @default allow target={{ vault }}
 {% endfor %}

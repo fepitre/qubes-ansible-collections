@@ -3,5 +3,3 @@ split_gpg_role: ""
 split_gpg_user: user
 split_gpg_packages:
   - qubes-gpg-split
-split_gpg_vault: ""
-split_gpg_domain_file: /rw/config/gpg-split-domain

@@ -20,9 +20,3 @@
   when:
     - split_gpg_phase == 'appvm'
     - split_gpg_role == 'vault'
-
-- name: Run client AppVM phase
-  ansible.builtin.import_tasks: client-appvm.yml
-  when:
-    - _split_gpg_qf.qubes_facts.properties.klass != 'TemplateVM'
-    - split_gpg_role == 'client'

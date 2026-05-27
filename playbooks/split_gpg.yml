@@ -136,7 +136,6 @@
       vars:
         split_gpg_role: client
         split_gpg_phase: appvm
-        split_gpg_vault: "{{ _gpg_vault }}"
 
 - name: Install split-GPG RPC policy
   hosts: localhost

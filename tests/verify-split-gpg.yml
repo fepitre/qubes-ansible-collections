@@ -20,16 +20,16 @@
           - _gnupg_stat.stat.isdir
       when: inventory_hostname == prefix + '-vault-gpg'
 
-    - name: Read client GPG domain file
+    - name: Read client split-GPG profile drop-in
       ansible.builtin.slurp:
-        src: /rw/config/gpg-split-domain
-      register: _gpg_domain
+        src: /etc/profile.d/qubes-split-gpg.sh
+      register: _gpg_profile
       when: inventory_hostname == prefix + '-work'
 
-    - name: Assert GPG domain points to vault
+    - name: Assert client defaults QUBES_GPG_DOMAIN to @default
       ansible.builtin.assert:
         that:
-          - "prefix + '-vault-gpg' in (_gpg_domain.content | b64decode)"
+          - "'QUBES_GPG_DOMAIN=@default' in (_gpg_profile.content | b64decode)"
       when: inventory_hostname == prefix + '-work'
 
 - name: Verify split-GPG dom0 policy
