@@ -17,6 +17,54 @@
     name: "{{ split_ssh_packages }}"
     state: present
 
+- name: Create /etc/qubes-rpc directory
+  ansible.builtin.file:
+    path: /etc/qubes-rpc
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install qubes.SshAgent RPC service
+  ansible.builtin.copy:
+    src: qubes.SshAgent
+    dest: /etc/qubes-rpc/qubes.SshAgent
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh CLI helper
+  ansible.builtin.copy:
+    src: split-ssh
+    dest: /usr/bin/split-ssh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create /usr/lib/split-ssh directory
+  ansible.builtin.file:
+    path: /usr/lib/split-ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh-agent start script
+  ansible.builtin.template:
+    src: start-ssh-agent.j2
+    dest: /usr/lib/split-ssh/start-agent
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh-agent templated systemd unit
+  ansible.builtin.copy:
+    src: split-ssh-agent@.service
+    dest: /usr/lib/systemd/system/split-ssh-agent@.service
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Seed /etc/skel/.ssh
   ansible.builtin.file:
     path: /etc/skel/.ssh
@@ -25,11 +73,10 @@
     group: root
     mode: "0700"
 
-- name: Seed per-agent identities directories under /etc/skel
+- name: Seed /etc/skel/.ssh/identities.d
   ansible.builtin.file:
-    path: "/etc/skel/.ssh/identities.d/{{ item }}"
+    path: /etc/skel/.ssh/identities.d
     state: directory
     owner: root
     group: root
     mode: "0700"
-  loop: "{{ split_ssh_agents }}"

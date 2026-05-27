@@ -25,3 +25,27 @@
     owner: root
     group: root
     mode: "0644"
+
+- name: Create /usr/lib/split-ssh directory
+  ansible.builtin.file:
+    path: /usr/lib/split-ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh-forwarder start script
+  ansible.builtin.template:
+    src: start-ssh-forwarder.j2
+    dest: /usr/lib/split-ssh/start-forwarder
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install split-ssh-forwarder templated systemd unit
+  ansible.builtin.copy:
+    src: split-ssh-forwarder@.service
+    dest: /usr/lib/systemd/system/split-ssh-forwarder@.service
+    owner: root
+    group: root
+    mode: "0644"

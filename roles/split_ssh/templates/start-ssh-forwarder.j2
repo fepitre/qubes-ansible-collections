@@ -15,7 +15,13 @@ case "$AGENT" in
     *[!A-Za-z0-9_.-]*) echo "invalid agent name" >&2; exit 1 ;;
 esac
 
-VAULT="{{ split_ssh_vault }}"
+VAULT_FILE="/rw/config/split-ssh-vault"
+if [ ! -s "$VAULT_FILE" ]; then
+    echo "split-SSH: $VAULT_FILE missing or empty" >&2
+    exit 1
+fi
+VAULT=$(cat "$VAULT_FILE")
+
 USER="{{ split_ssh_user }}"
 USER_HOME=$(getent passwd "$USER" | cut -d: -f6)
 SOCK_DIR="$USER_HOME/.split-ssh"

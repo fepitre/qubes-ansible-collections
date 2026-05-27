@@ -3,6 +3,6 @@ Description=split-SSH forwarder to vault for %i
 
 [Service]
 Type=simple
-ExecStart=/usr/local/lib/split-ssh/start-forwarder %i
+ExecStart=/usr/lib/split-ssh/start-forwarder %i
 Restart=on-failure
 RestartSec=5

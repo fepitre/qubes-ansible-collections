@@ -5,34 +5,10 @@
       - split_ssh_vault | length > 0
     fail_msg: "'split_ssh_vault' is required (e.g. 'vault-ssh')."
 
-- name: Create split-ssh lib directory
-  ansible.builtin.file:
-    path: /usr/local/lib/split-ssh
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Install split-ssh-forwarder start script
-  ansible.builtin.template:
-    src: start-ssh-forwarder.j2
-    dest: /usr/local/lib/split-ssh/start-forwarder
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Ensure systemd unit directory exists
-  ansible.builtin.file:
-    path: /usr/local/lib/systemd/system
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Install split-ssh-forwarder templated systemd unit
-  ansible.builtin.template:
-    src: split-ssh-forwarder@.service.j2
-    dest: /usr/local/lib/systemd/system/split-ssh-forwarder@.service
+- name: Write split-SSH vault qube name
+  ansible.builtin.copy:
+    dest: "{{ split_ssh_vault_file }}"
+    content: "{{ split_ssh_vault }}\n"
     owner: root
     group: root
     mode: "0644"
@@ -52,16 +28,18 @@
     state: absent
   when: split_ssh_default_agent | length == 0
 
-- name: Ensure rc.local exists for split-SSH proxy
+- name: Ensure rc.local.d exists for split-SSH proxy
   ansible.builtin.file:
-    path: "{{ split_ssh_rc_local_path }}"
-    state: touch
+    path: "{{ split_ssh_rc_local_d }}"
+    state: directory
     owner: root
     group: root
     mode: "0755"
 
-- name: Start split-ssh-forwarder services from rc.local
-  ansible.builtin.blockinfile:
-    path: "{{ split_ssh_rc_local_path }}"
-    marker: "# {mark} ANSIBLE MANAGED - split-SSH proxy"
-    block: "{{ lookup('template', 'rc-local-forwarders.j2') }}"
+- name: Drop split-SSH proxy rc.local.d snippet
+  ansible.builtin.template:
+    src: rc-local-forwarders.j2
+    dest: "{{ split_ssh_rc_local_d }}/30-split-ssh-proxy.rc"
+    owner: root
+    group: root
+    mode: "0755"

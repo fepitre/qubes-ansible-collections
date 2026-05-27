@@ -10,10 +10,10 @@
         path: "{{ item }}"
       register: _vault_files
       loop:
-        - /usr/local/etc/qubes-rpc/qubes.SshAgent
-        - /usr/local/lib/systemd/system/split-ssh-agent@.service
-        - /usr/local/lib/split-ssh/start-agent
-        - /usr/local/bin/split-ssh
+        - /etc/qubes-rpc/qubes.SshAgent
+        - /usr/lib/systemd/system/split-ssh-agent@.service
+        - /usr/lib/split-ssh/start-agent
+        - /usr/bin/split-ssh
 
     - name: Assert vault files exist
       ansible.builtin.assert:
@@ -41,12 +41,12 @@
       loop_control:
         label: "{{ item.item }}"
 
-    - name: Read vault rc.local
+    - name: Read vault rc.local.d snippet
       ansible.builtin.slurp:
-        src: /rw/config/rc.local
+        src: /rw/config/rc.local.d/30-split-ssh-vault.rc
       register: _vault_rclocal
 
-    - name: Assert vault rc.local starts all agents
+    - name: Assert vault rc.local.d snippet starts all agents
       ansible.builtin.assert:
         that:
           - "'split-ssh-agent@work.service' in (_vault_rclocal.content | b64decode)"
@@ -74,8 +74,8 @@
         path: "{{ item }}"
       register: _work_files
       loop:
-        - /usr/local/lib/systemd/system/split-ssh-forwarder@.service
-        - /usr/local/lib/split-ssh/start-forwarder
+        - /usr/lib/systemd/system/split-ssh-forwarder@.service
+        - /usr/lib/split-ssh/start-forwarder
         - /etc/profile.d/qubes-ssh.sh
 
     - name: Assert work client files exist
@@ -86,9 +86,9 @@
       loop_control:
         label: "{{ item.item }}"
 
-    - name: Read work client rc.local
+    - name: Read work client rc.local.d snippet
       ansible.builtin.slurp:
-        src: /rw/config/rc.local
+        src: /rw/config/rc.local.d/30-split-ssh-proxy.rc
       register: _work_rclocal
 
     - name: Assert work client only starts the work and shared forwarders
@@ -119,8 +119,8 @@
         path: "{{ item }}"
       register: _personal_files
       loop:
-        - /usr/local/lib/systemd/system/split-ssh-forwarder@.service
-        - /usr/local/lib/split-ssh/start-forwarder
+        - /usr/lib/systemd/system/split-ssh-forwarder@.service
+        - /usr/lib/split-ssh/start-forwarder
         - /etc/profile.d/qubes-ssh.sh
 
     - name: Assert personal client files exist
@@ -131,9 +131,9 @@
       loop_control:
         label: "{{ item.item }}"
 
-    - name: Read personal client rc.local
+    - name: Read personal client rc.local.d snippet
       ansible.builtin.slurp:
-        src: /rw/config/rc.local
+        src: /rw/config/rc.local.d/30-split-ssh-proxy.rc
       register: _personal_rclocal
 
     - name: Assert personal client only starts the personal and shared forwarders

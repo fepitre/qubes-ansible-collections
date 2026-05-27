@@ -3,6 +3,6 @@ Description=split-SSH agent for %i
 
 [Service]
 Type=simple
-ExecStart=/usr/local/lib/split-ssh/start-agent %i
+ExecStart=/usr/lib/split-ssh/start-agent %i
 Restart=on-failure
 RestartSec=5
