@@ -37,13 +37,8 @@ lint:
     - ansible-lint
 
 shellcheck:
-  extends: .lint
+  extends: .shellcheck
   stage: tests
-  before_script:
-    - if [ "$EUID" -ne 0 ]; then DNF="sudo dnf"; fi
-    - ${DNF:-dnf} install -y ShellCheck git
-  script:
-    - git ls-files '*.sh' | xargs -r shellcheck -x -e SC1117
 
 .ansible-deploy:
   rules:
