@@ -33,9 +33,9 @@ ansible-galaxy collection install qubesos-setup-*.tar.gz
 | Role | Target | Purpose |
 |---|---|---|
 | `bind_dirs` | qube | Persist paths across reboots via `/rw/bind-dirs/`. |
-| `split_ssh` | template + qube (vault or client) | Install split-SSH packages; in the vault, install `qubes.SshAgent` qrexec service and per-agent `ssh-agent` units; in clients, install `/etc/profile.d/qubes-ssh.sh`, per-agent forwarder units, default-agent file, rc.local hook. |
-| `split_gpg` | template + qube (vault or client) | Install `qubes-gpg-split` packages; in the vault, ensure `~/.gnupg` exists; in clients, write `gpg-split-domain`. |
-| `qsvc_qube` | template + qube | Install packages, add qubes-service systemd condition, enable units; append per-service `rc.local` lines (bind-dirs delegated to `bind_dirs`). |
+| `split_ssh` | template + qube (vault or client) | Install split-SSH packages and ship the `qubes.SshAgent` RPC service, CLI, helper scripts and systemd unit templates into the template (`/etc/qubes-rpc`, `/usr/bin`, `/usr/lib/split-ssh`, `/usr/lib/systemd/system`); per-AppVM phase writes the vault name, default agent, and an `rc.local.d` drop-in. Clients also get `/etc/profile.d/qubes-ssh.sh` in the template. |
+| `split_gpg` | template + qube (vault or client) | Install `qubes-gpg-split` packages; in the vault, ensure `~/.gnupg` exists; in clients, drop `/etc/profile.d/qubes-split-gpg.sh` (sets `QUBES_GPG_DOMAIN=@default`). Vault routing is done in qrexec policy via `@default target=<vault>`. |
+| `qsvc_qube` | template + qube | Install packages, add qubes-service systemd condition, enable units; drop per-service `rc.local.d/30-<svc>.rc` snippet (bind-dirs delegated to `bind_dirs`). |
 | `qsvc_dom0` | dom0 | Enable `qvm-service` flag for a list of qubes. |
 
 Roles that target both `template` and `qube` auto-detect the host's
@@ -173,8 +173,11 @@ ansible-playbook qubesos.setup.split_gpg \
   -e vault=vault-gpg -e clients=work,personal
 ```
 
-Installs `qubes-gpg-split` in the right templates, writes
-`gpg-split-domain` in each client, and a `qubes.Gpg` policy in dom0.
+Installs `qubes-gpg-split` in the right templates, drops a
+`/etc/profile.d/qubes-split-gpg.sh` in the client template (sets
+`QUBES_GPG_DOMAIN=@default`), and writes a per-vault `qubes.Gpg`
+policy in dom0 using `@default target=<vault>` so the vault routing
+lives in the policy, not in each client.
 
 Variables:
 
