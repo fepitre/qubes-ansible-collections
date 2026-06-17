@@ -169,12 +169,17 @@
         split_ssh_agents: "{{ _ssh_agent_list }}"
         split_ssh_default_agent: "{{ _ssh_default_agent }}"
 
-- name: Install split-SSH RPC policy
+- name: Install split-SSH dom0 policy
   hosts: localhost
   connection: ansible.builtin.local
   gather_facts: false
   become: true
   tasks:
+    - name: Install qubes-split-ssh-dom0 package
+      ansible.builtin.package:
+        name: qubes-split-ssh-dom0
+        state: present
+
     - name: Write per-vault qubes.SshAgent allow policy
       ansible.builtin.template:
         src: templates/split-ssh.policy.j2
@@ -183,13 +188,10 @@
         owner: root
         group: qubes
 
-    - name: Write shared qubes.SshAgent deny policy
-      ansible.builtin.copy:
-        content: "qubes.SshAgent * @anyvm @anyvm deny\n"
-        dest: /etc/qubes/policy.d/99-split-ssh-deny.policy
-        mode: "0664"
-        owner: root
-        group: qubes
+    - name: Remove obsolete standalone deny policy (now shipped by qubes-split-ssh-dom0)
+      ansible.builtin.file:
+        path: /etc/qubes/policy.d/99-split-ssh-deny.policy
+        state: absent
 
 - name: Shutdown templates and qubes
   hosts: localhost

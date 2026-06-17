@@ -8,6 +8,5 @@ split_ssh_default_agent_file: /rw/config/split-ssh-default-agent
 split_ssh_vault_file: /rw/config/split-ssh-vault
 split_ssh_rc_local_d: /rw/config/rc.local.d
 split_ssh_packages:
-  - socat
-  - openssh-clients
+  - qubes-split-ssh
 split_ssh_vault: ""

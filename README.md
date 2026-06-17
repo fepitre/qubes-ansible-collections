@@ -33,7 +33,7 @@ ansible-galaxy collection install qubesos-setup-*.tar.gz
 | Role | Target | Purpose |
 |---|---|---|
 | `bind_dirs` | qube | Persist paths across reboots via `/rw/bind-dirs/`. |
-| `split_ssh` | template + qube (vault or client) | Install split-SSH packages and ship the `qubes.SshAgent` RPC service, CLI, helper scripts and systemd unit templates into the template (`/etc/qubes-rpc`, `/usr/bin`, `/usr/lib/split-ssh`, `/usr/lib/systemd/system`); per-AppVM phase writes the vault name, default agent, and an `rc.local.d` drop-in. Clients also get `/etc/profile.d/qubes-ssh.sh` in the template. |
+| `split_ssh` | template + qube (vault or client) | Install the `qubes-split-ssh` package in the template (it ships the `qubes.SshAgent` RPC service, the `split-ssh` CLI, the agent/forwarder helpers and systemd unit templates, and `/etc/profile.d/qubes-ssh.sh`); per-AppVM phase writes the vault name, default agent, and an `rc.local.d` drop-in that starts the agent/forwarder units. |
 | `split_gpg` | template + qube (vault or client) | Install `qubes-gpg-split` packages; in the vault, ensure `~/.gnupg` exists; in clients, drop `/etc/profile.d/qubes-split-gpg.sh` (sets `QUBES_GPG_DOMAIN=@default`). Vault routing is done in qrexec policy via `@default target=<vault>`. |
 | `qsvc_qube` | template + qube | Install packages, add qubes-service systemd condition, enable units; drop per-service `rc.local.d/30-<svc>.rc` snippet (bind-dirs delegated to `bind_dirs`). |
 | `qsvc_dom0` | dom0 | Enable `qvm-service` flag for a list of qubes. |
@@ -52,11 +52,11 @@ each playbook so changes take effect on next boot.
 
 ### Split-SSH
 
-The playbook installs packages in the vault and client templates,
-runs per-agent `ssh-agent` instances in the vault, spins up a
-forwarder unit per `(client, agent)` pair, and writes a
-deny-by-default qrexec policy that permits exactly the pairs you ask
-for.
+The playbook installs the `qubes-split-ssh` package in the vault and
+client templates, runs per-agent `ssh-agent` instances in the vault,
+spins up a forwarder unit per `(client, agent)` pair, and writes a
+per-vault allow policy that permits exactly the pairs you ask for. The
+deny-by-default policy comes from the `qubes-split-ssh-dom0` package.
 
 Two ways to invoke it, depending on the isolation you need.
 
