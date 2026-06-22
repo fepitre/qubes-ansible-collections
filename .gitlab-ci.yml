@@ -24,6 +24,12 @@ variables:
   CI_KEEP_TEST_QUBES:
     value: "0"
     description: "Keep test qubes after the run for troubleshooting, default: 0"
+  SPLIT_SSH_PROJECT:
+    value: "QubesOS/qubes-app-linux-split-ssh"
+    description: "Project providing the qubes-split-ssh packages to validate"
+  SPLIT_SSH_REF:
+    value: ""
+    description: "split-ssh ref (e.g. pr-1) to test against; empty disables the deploy job"
 
 lint:
   extends: .lint
@@ -39,6 +45,54 @@ lint:
 shellcheck:
   extends: .shellcheck
   stage: tests
+
+# Cross-project needs:project (artifact download from another project) is a
+# GitLab Premium feature, so on free tier we pull the split-ssh build artifacts
+# from the public artifacts directly.
+fetch:split-ssh:
+  stage: build
+  image: fedora:latest
+  tags:
+    - docker
+  rules:
+    - if: '($CI_RUN_ANSIBLE_JOBS == "1" || $CI_RUN_ALL_JOBS == "1") && $SPLIT_SSH_REF != ""'
+      when: always
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - artifacts/repository
+  before_script:
+    - dnf install -y python3 findutils
+  script:
+    - |
+      python3 - <<'PY'
+      import json, os, subprocess, urllib.parse, urllib.request
+      api = "https://gitlab.com/api/v4"
+      proj = urllib.parse.quote(os.environ["SPLIT_SSH_PROJECT"], safe="")
+      ref = os.environ["SPLIT_SSH_REF"]
+
+      def get(path):
+          with urllib.request.urlopen(api + path) as r:
+              return json.load(r)
+
+      q = urllib.parse.quote(ref)
+      pls = get(f"/projects/{proj}/pipelines?ref={q}&order_by=id&sort=desc&per_page=1")
+      if not pls:
+          raise SystemExit(f"no pipeline for ref {ref}")
+      pid = pls[0]["id"]
+      print("pipeline", pid)
+      jobs = get(f"/projects/{proj}/pipelines/{pid}/jobs?per_page=100")
+      byname = {j["name"]: j for j in jobs}
+      for name in ("r4.3:build:host-fc41", "r4.3:build:vm-fc43"):
+          j = byname.get(name)
+          if not j or j["status"] != "success":
+              raise SystemExit(f"job {name}: {j and j['status']}")
+          print("download", name, j["id"])
+          urllib.request.urlretrieve(f"{api}/projects/{proj}/jobs/{j['id']}/artifacts", "ss.zip")
+          subprocess.check_call(["python3", "-m", "zipfile", "-e", "ss.zip", "."])
+          os.remove("ss.zip")
+      PY
+    - find artifacts/repository -name 'qubes-split-ssh*' -ls
 
 .ansible-deploy:
   rules:
@@ -70,10 +124,29 @@ shellcheck:
       sudo ansible-playbook -vvvv tests/cleanup.yml
       -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci 2>/dev/null || true
 
+# Runs only when SPLIT_SSH_REF is set. The split-ssh packages come from
+# fetch:split-ssh (same-project artifacts). Installs qubes-split-ssh-dom0 in
+# dom0 and qubes-split-ssh into the test template before the deploy playbook.
 r4.3:ansible-deploy:
   extends: .ansible-deploy
+  rules:
+    - if: '($CI_RUN_ANSIBLE_JOBS == "1" || $CI_RUN_ALL_JOBS == "1") && $SPLIT_SSH_REF != ""'
+      when: always
   needs:
     - r4.3:build:host-fc41
+    - fetch:split-ssh
   variables:
     TEST_TEMPLATE: fedora-43-xfce
     VM_IMAGE: qubes_4.3_64bit_stable.qcow2
+  before_script:
+    - !reference [.ansible-deploy, before_script]
+    - >-
+      find "$CI_PROJECT_DIR"/artifacts/repository/host-fc*
+      -name 'qubes-split-ssh-dom0-*.noarch.rpm'
+      -exec sudo dnf install -y {} \+
+    - >-
+      RPM=$(find "$CI_PROJECT_DIR"/artifacts/repository/vm-fc*
+      -name 'qubes-split-ssh-*.noarch.rpm' ! -name '*dom0*' | head -1);
+      cat "$RPM" | qvm-run -p -u root "${TEST_TEMPLATE}"
+      'cat >/tmp/qubes-split-ssh.rpm && dnf install -y /tmp/qubes-split-ssh.rpm && rm -f /tmp/qubes-split-ssh.rpm'
+    - qvm-shutdown --wait "${TEST_TEMPLATE}"

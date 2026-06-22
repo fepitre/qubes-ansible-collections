@@ -173,9 +173,9 @@
           - "'qubes.SshAgent +shared ' + prefix + '-personal ' + prefix + '-vault-ssh allow' in _ssh_policy_text"
           - "'qubes.SshAgent +work ' + prefix + '-personal ' + prefix + '-vault-ssh allow' not in _ssh_policy_text"
 
-    - name: Read shared deny policy file
+    - name: Read deny policy file shipped by qubes-split-ssh-dom0
       ansible.builtin.slurp:
-        src: /etc/qubes/policy.d/99-split-ssh-deny.policy
+        src: /etc/qubes/policy.d/90-qubes-split-ssh.policy
       register: _deny_policy
 
     - name: Assert shared deny line is present
