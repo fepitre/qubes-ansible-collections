@@ -29,7 +29,7 @@ variables:
     description: "Project providing the qubes-split-ssh packages to validate"
   SPLIT_SSH_REF:
     value: ""
-    description: "split-ssh ref (e.g. pr-1) to test against; empty disables the deploy job"
+    description: "split-ssh ref (e.g. pr-1) to test; empty uses split-ssh repository packages"
 
 lint:
   extends: .lint
@@ -124,29 +124,31 @@ fetch:split-ssh:
       sudo ansible-playbook -vvvv tests/cleanup.yml
       -e test_template="${TEST_TEMPLATE}" -e test_prefix=ci 2>/dev/null || true
 
-# Runs only when SPLIT_SSH_REF is set. The split-ssh packages come from
-# fetch:split-ssh (same-project artifacts). Installs qubes-split-ssh-dom0 in
-# dom0 and qubes-split-ssh into the test template before the deploy playbook.
+# With SPLIT_SSH_REF set packages come from the fetch:split-ssh artifacts.
+# Otherwise from the current-testing repos.
 r4.3:ansible-deploy:
   extends: .ansible-deploy
-  rules:
-    - if: '($CI_RUN_ANSIBLE_JOBS == "1" || $CI_RUN_ALL_JOBS == "1") && $SPLIT_SSH_REF != ""'
-      when: always
   needs:
     - r4.3:build:host-fc41
-    - fetch:split-ssh
+    - job: fetch:split-ssh
+      optional: true
   variables:
     TEST_TEMPLATE: fedora-43-xfce
     VM_IMAGE: qubes_4.3_64bit_stable.qcow2
   before_script:
     - !reference [.ansible-deploy, before_script]
-    - >-
-      find "$CI_PROJECT_DIR"/artifacts/repository/host-fc*
-      -name 'qubes-split-ssh-dom0-*.noarch.rpm'
-      -exec sudo dnf install -y {} \+
-    - >-
-      RPM=$(find "$CI_PROJECT_DIR"/artifacts/repository/vm-fc*
-      -name 'qubes-split-ssh-*.noarch.rpm' ! -name '*dom0*' | head -1);
-      cat "$RPM" | qvm-run -p -u root "${TEST_TEMPLATE}"
-      'cat >/tmp/qubes-split-ssh.rpm && dnf install -y /tmp/qubes-split-ssh.rpm && rm -f /tmp/qubes-split-ssh.rpm'
-    - qvm-shutdown --wait "${TEST_TEMPLATE}"
+    - |
+      if [ -n "$SPLIT_SSH_REF" ]; then
+        find "$CI_PROJECT_DIR"/artifacts/repository/host-fc* \
+          -name 'qubes-split-ssh-dom0-*.noarch.rpm' \
+          -exec sudo dnf install -y {} \+
+        RPM=$(find "$CI_PROJECT_DIR"/artifacts/repository/vm-fc* \
+          -name 'qubes-split-ssh-*.noarch.rpm' ! -name '*dom0*' | head -1)
+        cat "$RPM" | qvm-run -p -u root "${TEST_TEMPLATE}" \
+          'cat >/tmp/qubes-split-ssh.rpm && dnf install -y /tmp/qubes-split-ssh.rpm && rm -f /tmp/qubes-split-ssh.rpm'
+      else
+        sudo qubes-dom0-update --enablerepo=qubes-dom0-current-testing -y qubes-split-ssh-dom0
+        qvm-run -p -u root "${TEST_TEMPLATE}" \
+          'dnf install -y --enablerepo=qubes-vm-r4.3-current-testing qubes-split-ssh'
+      fi
+      qvm-shutdown --wait "${TEST_TEMPLATE}"
