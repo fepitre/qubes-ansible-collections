@@ -4,16 +4,8 @@
     name: "{{ split_gpg_packages }}"
     state: present
 
-- name: Default QUBES_GPG_DOMAIN to @default for split-GPG clients
-  ansible.builtin.copy:
-    dest: /etc/profile.d/qubes-split-gpg.sh
-    owner: root
-    group: root
-    mode: "0644"
-    content: |
-      # Loaded after upstream qubes-gpg.sh; sets @default so the Qrexec
-      # policy resolves the real vault via its target= parameter.
-      if [ -z "${QUBES_GPG_DOMAIN:-}" ]; then
-          export QUBES_GPG_DOMAIN=@default
-      fi
+- name: Remove obsolete split-GPG profile drop-in (now defaulted by qubes-gpg-split)
+  ansible.builtin.file:
+    path: /etc/profile.d/qubes-split-gpg.sh
+    state: absent
   when: split_gpg_role == 'client'

@@ -20,16 +20,28 @@
           - _gnupg_stat.stat.isdir
       when: inventory_hostname == prefix + '-vault-gpg'
 
-    - name: Read client split-GPG profile drop-in
+    - name: Read client qubes-gpg.sh shipped by qubes-gpg-split
       ansible.builtin.slurp:
-        src: /etc/profile.d/qubes-split-gpg.sh
+        src: /etc/profile.d/qubes-gpg.sh
       register: _gpg_profile
       when: inventory_hostname == prefix + '-work'
 
-    - name: Assert client defaults QUBES_GPG_DOMAIN to @default
+    - name: Assert package defaults QUBES_GPG_DOMAIN to @default
       ansible.builtin.assert:
         that:
           - "'QUBES_GPG_DOMAIN=@default' in (_gpg_profile.content | b64decode)"
+      when: inventory_hostname == prefix + '-work'
+
+    - name: Check obsolete split-GPG drop-in is gone
+      ansible.builtin.stat:
+        path: /etc/profile.d/qubes-split-gpg.sh
+      register: _gpg_dropin
+      when: inventory_hostname == prefix + '-work'
+
+    - name: Assert obsolete split-GPG drop-in is absent
+      ansible.builtin.assert:
+        that:
+          - not _gpg_dropin.stat.exists
       when: inventory_hostname == prefix + '-work'
 
 - name: Verify split-GPG dom0 policy

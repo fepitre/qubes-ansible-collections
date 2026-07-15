@@ -34,7 +34,7 @@ ansible-galaxy collection install qubesos-setup-*.tar.gz
 |---|---|---|
 | `bind_dirs` | qube | Persist paths across reboots via `/rw/bind-dirs/`. |
 | `split_ssh` | template + qube (vault or client) | Install the `qubes-split-ssh` package in the template (it ships the `qubes.SshAgent` RPC service, the `split-ssh` CLI, the agent/forwarder helpers and systemd unit templates, and `/etc/profile.d/qubes-ssh.sh`); per-AppVM phase writes the vault name, default agent, and an `rc.local.d` drop-in that starts the agent/forwarder units. |
-| `split_gpg` | template + qube (vault or client) | Install `qubes-gpg-split` packages; in the vault, ensure `~/.gnupg` exists; in clients, drop `/etc/profile.d/qubes-split-gpg.sh` (sets `QUBES_GPG_DOMAIN=@default`). Vault routing is done in qrexec policy via `@default target=<vault>`. |
+| `split_gpg` | template + qube (vault or client) | Install `qubes-gpg-split` packages (its `/etc/profile.d/qubes-gpg.sh` defaults `QUBES_GPG_DOMAIN` to `@default` when unconfigured); in the vault, ensure `~/.gnupg` exists. Vault routing is done in qrexec policy via `@default target=<vault>`. |
 | `qsvc_qube` | template + qube | Install packages, add qubes-service systemd condition, enable units; drop per-service `rc.local.d/30-<svc>.rc` snippet (bind-dirs delegated to `bind_dirs`). |
 | `qsvc_dom0` | dom0 | Enable `qvm-service` flag for a list of qubes. |
 
@@ -173,11 +173,11 @@ ansible-playbook qubesos.setup.split_gpg \
   -e vault=vault-gpg -e clients=work,personal
 ```
 
-Installs `qubes-gpg-split` in the right templates, drops a
-`/etc/profile.d/qubes-split-gpg.sh` in the client template (sets
-`QUBES_GPG_DOMAIN=@default`), and writes a per-vault `qubes.Gpg`
-policy in dom0 using `@default target=<vault>` so the vault routing
-lives in the policy, not in each client.
+Installs `qubes-gpg-split` in the right templates (its
+`/etc/profile.d/qubes-gpg.sh` defaults `QUBES_GPG_DOMAIN` to
+`@default` when no per-VM config file is present), and writes a
+per-vault `qubes.Gpg` policy in dom0 using `@default target=<vault>`
+so the vault routing lives in the policy, not in each client.
 
 Variables:
 
