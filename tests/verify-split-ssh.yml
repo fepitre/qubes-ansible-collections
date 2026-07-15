@@ -191,16 +191,13 @@
     prefix: "{{ test_prefix | default('ci') }}"
   tasks:
     - name: Start vault and client qubes
-      ansible.builtin.command:
-        argv:
-          - qvm-start
-          - --skip-if-running
-          - "{{ item }}"
+      qubesos.core.qube:
+        name: "{{ item }}"
+        state: running
       loop:
         - "{{ prefix }}-vault-ssh"
         - "{{ prefix }}-work"
         - "{{ prefix }}-personal"
-      changed_when: false
 
 - name: Wait for vault agent sockets
   hosts: "{{ test_prefix | default('ci') }}-vault-ssh"

@@ -58,12 +58,9 @@
     prefix: "{{ test_prefix | default('ci') }}"
   tasks:
     - name: Start GPG vault qube
-      ansible.builtin.command:
-        argv:
-          - qvm-start
-          - --skip-if-running
-          - "{{ prefix }}-vault-gpg"
-      changed_when: false
+      qubesos.core.qube:
+        name: "{{ prefix }}-vault-gpg"
+        state: running
 
 - name: Generate test GPG key in vault
   hosts: "{{ test_prefix | default('ci') }}-vault-gpg"

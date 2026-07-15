@@ -153,16 +153,6 @@
         owner: root
         group: qubes
 
-    - name: Write shared qubes.Gpg deny policy
-      ansible.builtin.copy:
-        content: |
-          qubes.Gpg * @anyvm @anyvm deny
-          qubes.GpgImportKey * @anyvm @anyvm deny
-        dest: /etc/qubes/policy.d/99-split-gpg-deny.policy
-        mode: "0664"
-        owner: root
-        group: qubes
-
 - name: Shutdown templates and qubes
   hosts: localhost
   connection: ansible.builtin.local

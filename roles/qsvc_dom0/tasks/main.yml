@@ -8,28 +8,12 @@
     fail_msg: >-
       'qsvc_name' and 'qsvc_dom0_qubes' (a list) are required.
 
-- name: Check qubes-service "{{ qsvc_name }}" state on each qube
-  ansible.builtin.command:
-    argv:
-      - qvm-service
-      - "{{ item }}"
+- name: Enable qubes-service "{{ qsvc_name }}" on each qube
+  qubesos.core.qube:
+    name: "{{ item }}"
+    state: present
+    services:
       - "{{ qsvc_name }}"
   loop: "{{ qsvc_dom0_qubes }}"
   loop_control:
     label: "{{ item }}"
-  register: _qsvc_state
-  changed_when: false
-  failed_when: false
-
-- name: Enable qubes-service "{{ qsvc_name }}" on each qube
-  ansible.builtin.command:
-    argv:
-      - qvm-service
-      - "{{ item.item }}"
-      - "{{ qsvc_name }}"
-      - "on"
-  loop: "{{ _qsvc_state.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-  when: item.rc != 0 or (item.stdout | default('') | trim) != 'on'
-  changed_when: true

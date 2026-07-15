@@ -18,21 +18,8 @@
       - "disp-mgmt-{{ prefix }}-work"
       - "disp-mgmt-{{ prefix }}-personal"
   tasks:
-    - name: Kill stale management dispVMs
-      ansible.builtin.command:
-        argv:
-          - qvm-kill
-          - "{{ item }}"
-      loop: "{{ mgmt_dispvm_names }}"
-      failed_when: false
-      changed_when: false
-
     - name: Remove stale management dispVMs
-      ansible.builtin.command:
-        argv:
-          - qvm-remove
-          - -f
-          - "{{ item }}"
+      qubesos.core.qube:
+        name: "{{ item }}"
+        state: absent
       loop: "{{ mgmt_dispvm_names }}"
-      failed_when: false
-      changed_when: false
