@@ -8,6 +8,9 @@ skip_list:
   - var-naming[no-role-prefix]
   # CHANGELOG is generated from git history, not kept in-tree.
   - galaxy[no-changelog]
+  # split-* templates intentionally track the latest package so the
+  # shipped profile.d / policy files stay current.
+  - package-latest
 mock_modules:
   - qubesos.core.qube_facts
   - qubesos.core.qube

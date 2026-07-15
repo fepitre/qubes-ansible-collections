@@ -2,7 +2,7 @@
 - name: Install split-ssh package in vault template
   ansible.builtin.package:
     name: "{{ split_ssh_packages }}"
-    state: present
+    state: latest
 
 - name: Seed /etc/skel/.ssh
   ansible.builtin.file:

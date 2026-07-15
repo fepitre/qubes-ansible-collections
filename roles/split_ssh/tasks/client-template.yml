@@ -2,4 +2,4 @@
 - name: Install split-ssh package in client template
   ansible.builtin.package:
     name: "{{ split_ssh_packages }}"
-    state: present
+    state: latest
