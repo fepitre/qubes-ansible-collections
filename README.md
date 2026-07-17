@@ -115,6 +115,18 @@ Host github.com gitlab.com
     IdentityAgent ~/.split-ssh/shared.sock
 ```
 
+#### Multiple vaults in one run
+
+Pass a `vaults` map to route several vaults at once. Each client's forwarder
+targets a single vault, so a client may appear under only one vault:
+
+```bash
+ansible-playbook qubesos.setup.split_ssh \
+  -e '{"vaults": {"vault-a": {"work": ["work"]}, "vault-b": {"personal": ["personal"]}}}'
+```
+
+This writes one `30-split-ssh-<vault>.policy` per vault.
+
 Variables:
 
 | Variable | Default | Purpose |
@@ -122,6 +134,7 @@ Variables:
 | `vault` | required | Vault qube name |
 | `clients` | one of `clients` / `client_agents` | Comma-separated client qubes; all use the single `default` agent |
 | `client_agents` | one of `clients` / `client_agents` | Dict `{client: [agents]}` for multi-agent with per-client mapping |
+| `vaults` | or `vault`+`client_agents` | Map `{vault: {client: [agents]}}` to route several vaults in one run |
 | `policy` | `allow` | `allow` or `ask` (qrexec policy action) |
 | `vault_default_agent` | unset | Exports `SSH_AUTH_SOCK` in the vault user shell |
 | `client_default_agent` | unset | Exports `SSH_AUTH_SOCK` in clients via `qubes-ssh.sh` (silently skipped per-client if not in that client's allowed agents). A client with exactly one agent defaults to that agent automatically. |

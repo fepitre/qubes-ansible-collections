@@ -6,28 +6,48 @@
   vars:
     policy_action: "{{ policy | default('allow') }}"
   tasks:
-    - name: Validate required variables
+    - name: Validate input (single vault or a vaults map)
       ansible.builtin.assert:
         that:
-          - vault is defined
-          - client_agents is defined
-          - client_agents | length > 0
+          - (vaults is defined) or (vault is defined and client_agents is defined)
           - policy_action in ['allow', 'ask']
-        fail_msg: "'vault' and 'client_agents' (dict of client -> [agent, ...]) are required."
+        fail_msg: >-
+          Provide 'vaults' ({vault: {client: [agents]}}) or 'vault' + 'client_agents';
+          policy must be 'allow' or 'ask'.
+
+    - name: Normalize input to a vaults map (vault to client-agents)
+      ansible.builtin.set_fact:
+        ssh_vaults_map: "{{ vaults if vaults is defined else {vault: client_agents} }}"
+        policy_action: "{{ policy_action }}"
 
     - name: Validate every client has at least one agent
+      vars:
+        _empty: >-
+          {{ ssh_vaults_map.values() | map('dict2items') | flatten
+             | selectattr('value', 'equalto', []) | map(attribute='key') | list }}
       ansible.builtin.assert:
         that:
-          - client_agents[item] | length > 0
-        fail_msg: "Client '{{ item }}' has an empty agent list in client_agents."
-      loop: "{{ client_agents.keys() | list }}"
+          - _empty | length == 0
+        fail_msg: "Clients with an empty agent list: {{ _empty }}"
 
-    - name: Compute effective client list and union agent list
+    - name: Validate each client is routed to exactly one vault
+      vars:
+        _all_clients: "{{ ssh_vaults_map.values() | map('list') | flatten }}"
+      ansible.builtin.assert:
+        that:
+          - _all_clients | length == (_all_clients | unique | list | length)
+        fail_msg: >-
+          A client appears under more than one vault; each client's forwarder
+          targets a single vault.
+
+    - name: Build client -> vault map
       ansible.builtin.set_fact:
-        client_to_agents: "{{ client_agents }}"
-        client_list: "{{ client_agents.keys() | list }}"
-        agent_list: "{{ client_agents.values() | flatten | unique | list }}"
-        policy_action: "{{ policy_action }}"
+        ssh_client_vault: >-
+          {{ ssh_client_vault | default({})
+             | combine(dict(item.value.keys() | list | zip_longest([], fillvalue=item.key))) }}
+      loop: "{{ ssh_vaults_map | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
 
     - name: Validate create_vault prerequisites
       ansible.builtin.assert:
@@ -37,27 +57,29 @@
         fail_msg: "'vault_template' is required when create_vault=true."
       when: create_vault | default(false) | bool
 
-    - name: Create vault qube
+    - name: Create vault qubes
       qubesos.core.qube:
-        name: "{{ vault }}"
+        name: "{{ item }}"
         state: present
         klass: AppVM
         template: "{{ vault_template }}"
         properties:
           label: "{{ vault_label | default('black') }}"
           netvm: ""
+      loop: "{{ ssh_vaults_map.keys() | list }}"
       when: create_vault | default(false) | bool
 
-    - name: Add vault qube
+    - name: Add vault qubes
       ansible.builtin.add_host:
-        name: "{{ vault }}"
+        name: "{{ item }}"
         groups: ssh_vaults
+      loop: "{{ ssh_vaults_map.keys() | list }}"
 
     - name: Add client qubes
       ansible.builtin.add_host:
         name: "{{ item }}"
         groups: ssh_clients
-      loop: "{{ client_list }}"
+      loop: "{{ ssh_client_vault.keys() | list }}"
 
 - name: Gather qube facts
   hosts: ssh_vaults:ssh_clients
@@ -76,17 +98,18 @@
   connection: ansible.builtin.local
   gather_facts: false
   tasks:
-    - name: Add vault template
+    - name: Add vault templates
       ansible.builtin.add_host:
         name: >-
-          {%- if hostvars[vault].qubes_facts.properties.klass == 'AppVM' -%}
-          {{ hostvars[vault].qubes_facts.properties.template }}
+          {%- if hostvars[item].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[item].qubes_facts.properties.template }}
           {%- else -%}
-          {{ vault }}
+          {{ item }}
           {%- endif -%}
         groups: ssh_vault_templates
         ansible_connection: qubesos.core.qubes
-        _ssh_agent_list: "{{ agent_list }}"
+        _ssh_agent_list: "{{ ssh_vaults_map[item].values() | flatten | unique | list }}"
+      loop: "{{ groups['ssh_vaults'] }}"
 
     - name: Add client templates
       ansible.builtin.add_host:
@@ -100,25 +123,27 @@
         ansible_connection: qubesos.core.qubes
       loop: "{{ groups['ssh_clients'] }}"
 
-    - name: Set connection for vault qube
+    - name: Set connection for vault qubes
       ansible.builtin.add_host:
-        name: "{{ vault }}"
+        name: "{{ item }}"
         ansible_connection: qubesos.core.qubes
-        _ssh_agent_list: "{{ agent_list }}"
-        _ssh_default_agent: "{{ vault_default_agent | default('') }}"
+        _ssh_agent_list: "{{ ssh_vaults_map[item].values() | flatten | unique | list }}"
+        _ssh_default_agent: >-
+          {{ vault_default_agent
+             if (vault_default_agent | default('')) in (ssh_vaults_map[item].values() | flatten | unique | list)
+             else '' }}
+      loop: "{{ groups['ssh_vaults'] }}"
 
     - name: Set connection for client qubes
       ansible.builtin.add_host:
         name: "{{ item }}"
         ansible_connection: qubesos.core.qubes
-        _ssh_agent_list: "{{ client_to_agents[item] }}"
+        _ssh_agent_list: "{{ ssh_vaults_map[ssh_client_vault[item]][item] }}"
         _ssh_default_agent: >-
-          {{
-            client_default_agent
-            if (client_default_agent | default('')) in client_to_agents[item]
-            else ''
-          }}
-        _ssh_vault: "{{ vault }}"
+          {{ client_default_agent
+             if (client_default_agent | default('')) in ssh_vaults_map[ssh_client_vault[item]][item]
+             else '' }}
+        _ssh_vault: "{{ ssh_client_vault[item] }}"
       loop: "{{ groups['ssh_clients'] }}"
 
 - name: Prepare templates
@@ -183,10 +208,16 @@
     - name: Write per-vault qubes.SshAgent allow policy
       ansible.builtin.template:
         src: templates/split-ssh.policy.j2
-        dest: "/etc/qubes/policy.d/30-split-ssh-{{ vault }}.policy"
+        dest: "/etc/qubes/policy.d/30-split-ssh-{{ item.key }}.policy"
         mode: "0664"
         owner: root
         group: qubes
+      vars:
+        vault: "{{ item.key }}"
+        client_to_agents: "{{ item.value }}"
+      loop: "{{ ssh_vaults_map | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
 
     - name: Remove obsolete standalone deny policy (now shipped by qubes-split-ssh-dom0)
       ansible.builtin.file:
