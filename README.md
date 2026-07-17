@@ -181,15 +181,26 @@ Installs `qubes-gpg-split` in the right templates (its
 per-vault `qubes.Gpg` policy in dom0 using `@default target=<vault>`
 so the vault routing lives in the policy, not in each client.
 
+Route several vaults in a single run with a `vaults` map (each client must
+appear under exactly one vault, since routing is `@default target=<vault>`):
+
+```bash
+ansible-playbook qubesos.setup.split_gpg \
+  -e '{"vaults": {"vault-work": ["work", "build"], "vault-personal": ["personal"]}}'
+```
+
+This writes one `30-split-gpg-<vault>.policy` file per vault.
+
 Variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `vault` | required | Vault qube name |
-| `clients` | required | Comma-separated client qubes |
-| `create_vault` | `false` | Create the vault qube before configuring it |
-| `vault_template` | unset | Template for the vault qube (required if `create_vault=true`) |
-| `vault_label` | `black` | Label for the vault qube (only with `create_vault=true`) |
+| `vault` | with `clients` | Vault qube name (single-vault form) |
+| `clients` | with `vault` | Comma-separated client qubes for that vault |
+| `vaults` | or `vault`+`clients` | Map `{vault: [clients]}` to route several vaults in one run |
+| `create_vault` | `false` | Create the vault qube(s) before configuring them |
+| `vault_template` | unset | Template for created vaults (required if `create_vault=true`) |
+| `vault_label` | `black` | Label for created vaults (only with `create_vault=true`) |
 
 #### Handling keys
 

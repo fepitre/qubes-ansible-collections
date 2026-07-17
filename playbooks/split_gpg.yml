@@ -3,15 +3,44 @@
   hosts: localhost
   connection: ansible.builtin.local
   gather_facts: false
-  vars:
-    client_list: "{{ (clients.split(',') if clients is string else clients) | map('trim') | list }}"
   tasks:
-    - name: Validate required variables
+    - name: Validate input (single vault or a vaults map)
       ansible.builtin.assert:
         that:
-          - vault is defined
-          - clients is defined
-          - client_list | length > 0
+          - (vaults is defined) or (vault is defined and clients is defined)
+        fail_msg: >-
+          Provide either 'vaults' (a {vault: [clients]} map) or 'vault' + 'clients'.
+
+    - name: Normalize input to a vault -> clients map
+      ansible.builtin.set_fact:
+        gpg_vaults_map: >-
+          {{ vaults if vaults is defined
+             else {vault: ((clients.split(',') if clients is string else clients)
+                           | map('trim') | list)} }}
+
+    - name: Validate every vault has at least one client
+      ansible.builtin.assert:
+        that:
+          - gpg_vaults_map[item] | length > 0
+        fail_msg: "Vault '{{ item }}' has no clients."
+      loop: "{{ gpg_vaults_map.keys() | list }}"
+
+    - name: Validate each client is routed to exactly one vault
+      vars:
+        _all_clients: "{{ gpg_vaults_map.values() | list | flatten }}"
+      ansible.builtin.assert:
+        that:
+          - _all_clients | length == (_all_clients | unique | list | length)
+        fail_msg: >-
+          A client appears under more than one vault; @default routing needs
+          exactly one vault per client.
+
+    - name: Build client -> vault map
+      ansible.builtin.set_fact:
+        gpg_client_vault: "{{ gpg_client_vault | default({}) | combine({item.1: item.0.key}) }}"
+      loop: "{{ gpg_vaults_map | dict2items | subelements('value') }}"
+      loop_control:
+        label: "{{ item.1 }}"
 
     - name: Validate create_vault prerequisites
       ansible.builtin.assert:
@@ -21,27 +50,29 @@
         fail_msg: "'vault_template' is required when create_vault=true."
       when: create_vault | default(false) | bool
 
-    - name: Create vault qube
+    - name: Create vault qubes
       qubesos.core.qube:
-        name: "{{ vault }}"
+        name: "{{ item }}"
         state: present
         klass: AppVM
         template: "{{ vault_template }}"
         properties:
           label: "{{ vault_label | default('black') }}"
           netvm: ""
+      loop: "{{ gpg_vaults_map.keys() | list }}"
       when: create_vault | default(false) | bool
 
-    - name: Add vault qube
+    - name: Add vault qubes
       ansible.builtin.add_host:
-        name: "{{ vault }}"
+        name: "{{ item }}"
         groups: gpg_vaults
+      loop: "{{ gpg_vaults_map.keys() | list }}"
 
     - name: Add client qubes
       ansible.builtin.add_host:
         name: "{{ item }}"
         groups: gpg_clients
-      loop: "{{ client_list }}"
+      loop: "{{ gpg_client_vault.keys() | list }}"
 
 - name: Gather qube facts
   hosts: gpg_vaults:gpg_clients
@@ -60,16 +91,17 @@
   connection: ansible.builtin.local
   gather_facts: false
   tasks:
-    - name: Add vault template
+    - name: Add vault templates
       ansible.builtin.add_host:
         name: >-
-          {%- if hostvars[vault].qubes_facts.properties.klass == 'AppVM' -%}
-          {{ hostvars[vault].qubes_facts.properties.template }}
+          {%- if hostvars[item].qubes_facts.properties.klass == 'AppVM' -%}
+          {{ hostvars[item].qubes_facts.properties.template }}
           {%- else -%}
-          {{ vault }}
+          {{ item }}
           {%- endif -%}
         groups: gpg_vault_templates
         ansible_connection: qubesos.core.qubes
+      loop: "{{ groups['gpg_vaults'] }}"
 
     - name: Add client templates
       ansible.builtin.add_host:
@@ -83,16 +115,17 @@
         ansible_connection: qubesos.core.qubes
       loop: "{{ groups['gpg_clients'] }}"
 
-    - name: Set connection for vault qube
+    - name: Set connection for vault qubes
       ansible.builtin.add_host:
-        name: "{{ vault }}"
+        name: "{{ item }}"
         ansible_connection: qubesos.core.qubes
+      loop: "{{ groups['gpg_vaults'] }}"
 
     - name: Set connection for client qubes
       ansible.builtin.add_host:
         name: "{{ item }}"
         ansible_connection: qubesos.core.qubes
-        _gpg_vault: "{{ vault }}"
+        _gpg_vault: "{{ gpg_client_vault[item] }}"
       loop: "{{ groups['gpg_clients'] }}"
 
 - name: Prepare templates
@@ -142,16 +175,20 @@
   connection: ansible.builtin.local
   gather_facts: false
   become: true
-  vars:
-    client_list: "{{ (clients.split(',') if clients is string else clients) | map('trim') | list }}"
   tasks:
     - name: Write per-vault qubes.Gpg allow policy
       ansible.builtin.template:
         src: templates/split-gpg.policy.j2
-        dest: "/etc/qubes/policy.d/30-split-gpg-{{ vault }}.policy"
+        dest: "/etc/qubes/policy.d/30-split-gpg-{{ item.key }}.policy"
         mode: "0664"
         owner: root
         group: qubes
+      vars:
+        vault: "{{ item.key }}"
+        client_list: "{{ item.value }}"
+      loop: "{{ gpg_vaults_map | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
 
 - name: Shutdown templates and qubes
   hosts: localhost
