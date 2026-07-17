@@ -124,7 +124,7 @@ Variables:
 | `client_agents` | one of `clients` / `client_agents` | Dict `{client: [agents]}` for multi-agent with per-client mapping |
 | `policy` | `allow` | `allow` or `ask` (qrexec policy action) |
 | `vault_default_agent` | unset | Exports `SSH_AUTH_SOCK` in the vault user shell |
-| `client_default_agent` | unset | Exports `SSH_AUTH_SOCK` in clients via `qubes-ssh.sh` (silently skipped per-client if not in that client's allowed agents) |
+| `client_default_agent` | unset | Exports `SSH_AUTH_SOCK` in clients via `qubes-ssh.sh` (silently skipped per-client if not in that client's allowed agents). A client with exactly one agent defaults to that agent automatically. |
 | `create_vault` | `false` | Create the vault qube before configuring it |
 | `vault_template` | unset | Template for the vault qube (required if `create_vault=true`) |
 | `vault_label` | `black` | Label for the vault qube (only with `create_vault=true`) |
@@ -164,7 +164,9 @@ placed next to the key, suffix `.ssh-add-option`:
 Set `client_default_agent=shared` (or another name from your map) to
 have `/etc/profile.d/qubes-ssh.sh` export `SSH_AUTH_SOCK` to that
 agent at login, so bare `ssh foo` just works for the default keyring.
-Override per-host with `IdentityAgent` as shown above.
+Override per-host with `IdentityAgent` as shown above. A client that
+has exactly one agent defaults `SSH_AUTH_SOCK` to it automatically, so
+single-agent clients need no `client_default_agent`.
 
 ### Split-GPG
 

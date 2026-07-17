@@ -13,20 +13,27 @@
     group: root
     mode: "0644"
 
+- name: Resolve effective default agent (explicit, else the client's sole agent)
+  ansible.builtin.set_fact:
+    split_ssh_effective_default_agent: >-
+      {{ split_ssh_default_agent
+         if (split_ssh_default_agent | length > 0)
+         else (split_ssh_agents[0] if (split_ssh_agents | default([]) | length == 1) else '') }}
+
 - name: Write split-SSH default agent file
   ansible.builtin.copy:
     dest: "{{ split_ssh_default_agent_file }}"
-    content: "{{ split_ssh_default_agent }}\n"
+    content: "{{ split_ssh_effective_default_agent }}\n"
     owner: "{{ split_ssh_user }}"
     group: "{{ split_ssh_user }}"
     mode: "0644"
-  when: split_ssh_default_agent | length > 0
+  when: split_ssh_effective_default_agent | length > 0
 
 - name: Remove split-SSH default agent file when unset
   ansible.builtin.file:
     path: "{{ split_ssh_default_agent_file }}"
     state: absent
-  when: split_ssh_default_agent | length == 0
+  when: split_ssh_effective_default_agent | length == 0
 
 - name: Ensure rc.local.d exists for split-SSH proxy
   ansible.builtin.file:
