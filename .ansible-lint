@@ -14,3 +14,4 @@ skip_list:
 mock_modules:
   - qubesos.core.qube_facts
   - qubesos.core.qube
+  - qubesos.core.qubes_dom0_update

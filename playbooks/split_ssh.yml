@@ -201,9 +201,9 @@
   become: true
   tasks:
     - name: Install qubes-split-ssh-dom0 package
-      ansible.builtin.package:
+      qubesos.core.qubes_dom0_update:
         name: qubes-split-ssh-dom0
-        state: present
+        state: latest
 
     - name: Write per-vault qubes.SshAgent allow policy
       ansible.builtin.template:
